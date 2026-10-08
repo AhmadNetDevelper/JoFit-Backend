@@ -1,0 +1,8 @@
+namespace JoFit.Contracts.Requests.Users;
+
+public sealed record GetUsersPagedRequest(
+    int Page = 1,
+    int PageSize = 10,
+    string? Search = null,
+    bool? IsActive = null,
+    string? RoleName = null);

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Requests\Companies\**" />
+    <Compile Remove="Requests\ManualJoFitsNotes\**" />
+    <EmbeddedResource Remove="Requests\Companies\**" />
+    <EmbeddedResource Remove="Requests\ManualJoFitsNotes\**" />
+    <None Remove="Requests\Companies\**" />
+    <None Remove="Requests\ManualJoFitsNotes\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Http.Features" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JoFit.Domain\JoFit.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
