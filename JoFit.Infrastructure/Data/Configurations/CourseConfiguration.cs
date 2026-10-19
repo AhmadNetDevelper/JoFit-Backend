@@ -69,6 +69,16 @@ public class CourseInstructorLinkConfiguration : IEntityTypeConfiguration<Course
     }
 }
 
+public class CourseSportLinkConfiguration : IEntityTypeConfiguration<CourseSportLink>
+{
+    public void Configure(EntityTypeBuilder<CourseSportLink> builder)
+    {
+        builder.HasKey(x => new { x.CourseId, x.SportId });
+        builder.HasIndex(x => x.SportId);
+        builder.ToTable("CourseSportLinks");
+    }
+}
+
 public class RecordMediaConfiguration : IEntityTypeConfiguration<JoFit.Domain.Media.RecordMedia>
 {
     public void Configure(EntityTypeBuilder<JoFit.Domain.Media.RecordMedia> builder)

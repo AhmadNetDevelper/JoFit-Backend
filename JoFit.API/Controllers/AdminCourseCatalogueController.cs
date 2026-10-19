@@ -107,7 +107,8 @@ public sealed class AdminCourseCatalogueController(ISender sender) : ApiControll
             details,
             r.CategoryIds,
             r.Media?.Select(m => new GalleryItem(m.Id, m.Alt)).ToList(),
-            r.InstructorIds);
+            r.InstructorIds,
+            r.SportIds);
     }
 }
 

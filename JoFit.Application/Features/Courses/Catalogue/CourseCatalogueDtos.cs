@@ -26,6 +26,7 @@ public sealed record AdminCourseDto(
     MoneyDto? CompareAtPrice,
     IReadOnlyList<long> CategoryIds,
     IReadOnlyList<long> InstructorIds,
+    IReadOnlyList<long> SportIds,
     IReadOnlyList<string> Languages,
     LocalizedText? Venue,
     CertificationDto? Certification,
@@ -35,7 +36,7 @@ public sealed record AdminCourseDto(
     DateTimeOffset? PublishedAt,
     AuditDto Audit)
 {
-    public static AdminCourseDto From(Course c, IReadOnlyList<long> categoryIds, IReadOnlyList<MediaImageDto> media, int seatsTaken = 0, int enrolmentCount = 0, IReadOnlyList<long>? instructorIds = null)
+    public static AdminCourseDto From(Course c, IReadOnlyList<long> categoryIds, IReadOnlyList<MediaImageDto> media, int seatsTaken = 0, int enrolmentCount = 0, IReadOnlyList<long>? instructorIds = null, IReadOnlyList<long>? sportIds = null)
         => new(
             c.Id,
             c.Slug,
@@ -51,6 +52,7 @@ public sealed record AdminCourseDto(
             c.CompareAtAmount is long compare ? new MoneyDto(compare) : null,
             categoryIds,
             instructorIds ?? [],
+            sportIds ?? [],
             c.LanguageList,
             c.VenueEn is null || c.VenueAr is null ? null : new LocalizedText(c.VenueEn, c.VenueAr),
             c.CertificationNameEn is null

@@ -210,6 +210,13 @@ public class CourseInstructorLink
     public long CoachId { get; set; }
 }
 
+/// <summary>Which sports a course is filed under.</summary>
+public class CourseSportLink
+{
+    public long CourseId { get; set; }
+    public long SportId { get; set; }
+}
+
 /// <summary>Which categories a course belongs to.</summary>
 public class CourseCategoryLink
 {

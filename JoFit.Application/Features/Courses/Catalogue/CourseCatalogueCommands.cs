@@ -15,7 +15,8 @@ public sealed record CourseDraftInput(
     CourseDetails Details,
     IReadOnlyList<long> CategoryIds,
     IReadOnlyList<GalleryItem>? Media,
-    IReadOnlyList<long>? InstructorIds = null);
+    IReadOnlyList<long>? InstructorIds = null,
+    IReadOnlyList<long>? SportIds = null);
 
 public sealed record CreateCourseDraftCommand(CourseDraftInput Input) : IRequest<Result<AdminCourseDto>>;
 
@@ -54,6 +55,32 @@ internal static class CourseSaving
         return found == ids.Count ? null : CourseErrors.Field("instructorIds", "One of the instructors is not a coach.");
     }
 
+    /// <summary>Every sport must exist.</summary>
+    public static async Task<Error?> CheckSportsAsync(IUnitOfWork unitOfWork, IReadOnlyList<long>? sportIds, CancellationToken ct)
+    {
+        var ids = (sportIds ?? []).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return null;
+        }
+
+        var found = await unitOfWork.GetRepository<JoFit.Domain.Sports.Sport>().GetTableNoTracking().CountAsync(s => ids.Contains(s.Id), ct);
+        return found == ids.Count ? null : CourseErrors.Field("sportIds", "One of the sports does not exist.");
+    }
+
+    public static async Task ReplaceSportsAsync(IUnitOfWork unitOfWork, long courseId, IReadOnlyList<long>? sportIds, CancellationToken ct)
+    {
+        // Absent (null) keeps the sports; a list (even empty) replaces them.
+        if (sportIds is null)
+        {
+            return;
+        }
+
+        var db = unitOfWork.GetDbContext();
+        db.RemoveRange(await db.Set<CourseSportLink>().Where(l => l.CourseId == courseId).ToListAsync(ct));
+        db.AddRange(sportIds.Distinct().Select(id => new CourseSportLink { CourseId = courseId, SportId = id }));
+    }
+
     public static async Task ReplaceInstructorsAsync(IUnitOfWork unitOfWork, long courseId, IReadOnlyList<long>? instructorIds, CancellationToken ct)
     {
         // Absent (null) keeps the instructors; a list (even empty) replaces them.
@@ -84,7 +111,9 @@ internal static class CourseSaving
         var counts = await CourseSeats.EnrolmentCountsAsync(unitOfWork, [course.Id], ct);
         var instructorIds = await unitOfWork.GetDbContext().Set<CourseInstructorLink>().AsNoTracking()
             .Where(l => l.CourseId == course.Id).Select(l => l.CoachId).OrderBy(id => id).ToListAsync(ct);
-        return AdminCourseDto.From(course, categoryIds, media.GetValueOrDefault(course.Id) ?? [], seats, counts.GetValueOrDefault(course.Id), instructorIds);
+        var sportIds = await unitOfWork.GetDbContext().Set<CourseSportLink>().AsNoTracking()
+            .Where(l => l.CourseId == course.Id).Select(l => l.SportId).OrderBy(id => id).ToListAsync(ct);
+        return AdminCourseDto.From(course, categoryIds, media.GetValueOrDefault(course.Id) ?? [], seats, counts.GetValueOrDefault(course.Id), instructorIds, sportIds);
     }
 }
 
@@ -106,6 +135,11 @@ public class CreateCourseDraftCommandHandler(IUnitOfWork unitOfWork, IUrlService
         if (await CourseSaving.CheckInstructorsAsync(unitOfWork, input.InstructorIds, ct) is Error instructorError)
         {
             errors.Add(instructorError);
+        }
+
+        if (await CourseSaving.CheckSportsAsync(unitOfWork, input.SportIds, ct) is Error sportError)
+        {
+            errors.Add(sportError);
         }
 
         if (errors.Count > 0)
@@ -132,6 +166,7 @@ public class CreateCourseDraftCommandHandler(IUnitOfWork unitOfWork, IUrlService
             await unitOfWork.SaveChangesAsync(ct);
             await CourseSaving.ReplaceCategoriesAsync(unitOfWork, course.Id, input.CategoryIds, ct);
             await CourseSaving.ReplaceInstructorsAsync(unitOfWork, course.Id, input.InstructorIds, ct);
+            await CourseSaving.ReplaceSportsAsync(unitOfWork, course.Id, input.SportIds, ct);
 
             if (input.Media is not null)
             {
@@ -195,6 +230,11 @@ public class UpdateCourseDetailsCommandHandler(IUnitOfWork unitOfWork, IUrlServi
             errors.Add(instructorError);
         }
 
+        if (await CourseSaving.CheckSportsAsync(unitOfWork, input.SportIds, ct) is Error sportError)
+        {
+            errors.Add(sportError);
+        }
+
         if (errors.Count > 0)
         {
             return errors;
@@ -205,6 +245,7 @@ public class UpdateCourseDetailsCommandHandler(IUnitOfWork unitOfWork, IUrlServi
         {
             await CourseSaving.ReplaceCategoriesAsync(unitOfWork, course.Id, input.CategoryIds, ct);
             await CourseSaving.ReplaceInstructorsAsync(unitOfWork, course.Id, input.InstructorIds, ct);
+            await CourseSaving.ReplaceSportsAsync(unitOfWork, course.Id, input.SportIds, ct);
             if (input.Media is not null)
             {
                 var gallery = await GalleryService.SyncAsync(unitOfWork, urlService, CourseSaving.OwnerType, course.Id, CourseSaving.MediaField, input.Media, ct);

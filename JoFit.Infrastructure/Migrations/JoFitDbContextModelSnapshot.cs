@@ -1828,6 +1828,21 @@ namespace JoFit.Infrastructure.Migrations
                     b.ToTable("CourseInstructorLinks", (string)null);
                 });
 
+            modelBuilder.Entity("JoFit.Domain.Courses.CourseSportLink", b =>
+                {
+                    b.Property<long>("CourseId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SportId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("CourseId", "SportId");
+
+                    b.HasIndex("SportId");
+
+                    b.ToTable("CourseSportLinks", (string)null);
+                });
+
             modelBuilder.Entity("JoFit.Domain.Customers.Address", b =>
                 {
                     b.Property<long>("Id")

@@ -39,6 +39,9 @@ public sealed record CourseDraftRequest
 
     /// <summary>Coaches who teach it. Absent keeps them, a list replaces them.</summary>
     public List<long>? InstructorIds { get; init; }
+
+    /// <summary>Sports it is filed under. Absent keeps them, a list replaces them.</summary>
+    public List<long>? SportIds { get; init; }
     public List<string> Languages { get; init; } = [];
     public LocalizedTextRequest? Venue { get; init; }
     public CertificationRequest? Certification { get; init; }

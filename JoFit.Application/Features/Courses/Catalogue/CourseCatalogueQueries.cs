@@ -71,13 +71,15 @@ public class GetAdminCoursesQueryHandler(IUnitOfWork unitOfWork)
         var seats = await CourseSeats.TakenAsync(unitOfWork, page.Items.ToList(), ct);
         var counts = await CourseSeats.EnrolmentCountsAsync(unitOfWork, ids, ct);
         var instructorLinks = await db.Set<CourseInstructorLink>().AsNoTracking().Where(l => ids.Contains(l.CourseId)).ToListAsync(ct);
+        var sportLinks = await db.Set<CourseSportLink>().AsNoTracking().Where(l => ids.Contains(l.CourseId)).ToListAsync(ct);
         var items = page.Items.Select(c => AdminCourseDto.From(
             c,
             links.Where(l => l.CourseId == c.Id).Select(l => l.CourseCategoryId).OrderBy(x => x).ToList(),
             media.GetValueOrDefault(c.Id) ?? [],
             seats.GetValueOrDefault(c.Id),
             counts.GetValueOrDefault(c.Id),
-            instructorLinks.Where(l => l.CourseId == c.Id).Select(l => l.CoachId).OrderBy(x => x).ToList())).ToList();
+            instructorLinks.Where(l => l.CourseId == c.Id).Select(l => l.CoachId).OrderBy(x => x).ToList(),
+            sportLinks.Where(l => l.CourseId == c.Id).Select(l => l.SportId).OrderBy(x => x).ToList())).ToList();
         return new PagedResult<AdminCourseDto>(items, page.Page, page.PageSize, page.TotalCount);
     }
 }
@@ -100,7 +102,9 @@ public class GetAdminCourseQueryHandler(IUnitOfWork unitOfWork)
         var counts = await CourseSeats.EnrolmentCountsAsync(unitOfWork, [course.Id], ct);
         var instructorIds = await unitOfWork.GetDbContext().Set<CourseInstructorLink>().AsNoTracking()
             .Where(l => l.CourseId == course.Id).Select(l => l.CoachId).OrderBy(id => id).ToListAsync(ct);
-        return AdminCourseDto.From(course, categoryIds, media.GetValueOrDefault(course.Id) ?? [], seatsTaken, counts.GetValueOrDefault(course.Id), instructorIds);
+        var sportIds = await unitOfWork.GetDbContext().Set<CourseSportLink>().AsNoTracking()
+            .Where(l => l.CourseId == course.Id).Select(l => l.SportId).OrderBy(id => id).ToListAsync(ct);
+        return AdminCourseDto.From(course, categoryIds, media.GetValueOrDefault(course.Id) ?? [], seatsTaken, counts.GetValueOrDefault(course.Id), instructorIds, sportIds);
     }
 }
 
