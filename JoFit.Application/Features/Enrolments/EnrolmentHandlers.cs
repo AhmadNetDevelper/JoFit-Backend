@@ -128,6 +128,18 @@ public class EnrolCommandHandler(IUnitOfWork unitOfWork, ILocalizationService lo
             {
                 return EnrolmentErrors.Full;
             }
+
+            // Staff can mark the intake soon or full regardless of seats; the server enforces it.
+            var state = course.IntakeState(taken, DateOnly.FromDateTime(DateTime.UtcNow));
+            if (state == IntakeStates.Full)
+            {
+                return EnrolmentErrors.Full;
+            }
+
+            if (state == IntakeStates.Soon)
+            {
+                return EnrolmentErrors.NotOpen;
+            }
         }
 
         var enrolment = Enrolment.Reserve(course.Id, customer.Id, course.IntakeStartsOn);

@@ -1694,6 +1694,9 @@ namespace JoFit.Infrastructure.Migrations
                         .HasMaxLength(10000)
                         .HasColumnType("character varying(10000)");
 
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("DurationHours")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)");
@@ -1710,6 +1713,13 @@ namespace JoFit.Infrastructure.Migrations
 
                     b.Property<DateOnly?>("IntakeStartsOn")
                         .HasColumnType("date");
+
+                    b.Property<string>("IntakeStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("auto");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1791,6 +1801,8 @@ namespace JoFit.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DisplayOrder", "Id");
+
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasFilter("\"Slug\" IS NOT NULL AND \"IsDeleted\" = false");
@@ -1826,6 +1838,48 @@ namespace JoFit.Infrastructure.Migrations
                     b.HasIndex("CoachId");
 
                     b.ToTable("CourseInstructorLinks", (string)null);
+                });
+
+            modelBuilder.Entity("JoFit.Domain.Courses.CourseModule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("CourseId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SummaryAr")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("SummaryEn")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("TitleAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TitleEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId", "SortOrder");
+
+                    b.ToTable("CourseModules", (string)null);
                 });
 
             modelBuilder.Entity("JoFit.Domain.Courses.CourseSportLink", b =>
@@ -4531,6 +4585,15 @@ namespace JoFit.Infrastructure.Migrations
                     b.HasOne("JoFit.Domain.Coaches.Coach", null)
                         .WithMany("Packages")
                         .HasForeignKey("CoachId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("JoFit.Domain.Courses.CourseModule", b =>
+                {
+                    b.HasOne("JoFit.Domain.Courses.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

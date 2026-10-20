@@ -101,14 +101,18 @@ public sealed class AdminCourseCatalogueController(ISender sender) : ApiControll
             r.Languages,
             r.Venue?.En, r.Venue?.Ar,
             certification,
-            startsOn, r.NextIntake?.SeatsTotal);
+            startsOn, r.NextIntake?.SeatsTotal,
+            r.DisplayOrder,
+            r.NextIntake?.Status);
 
         return new CourseDraftInput(
             details,
             r.CategoryIds,
             r.Media?.Select(m => new GalleryItem(m.Id, m.Alt)).ToList(),
             r.InstructorIds,
-            r.SportIds);
+            r.SportIds,
+            r.Modules?.Select(m => new CourseModuleInput(
+                m.SortOrder, m.Title.En, m.Title.Ar, m.Summary?.En, m.Summary?.Ar, m.DurationMinutes)).ToList());
     }
 }
 

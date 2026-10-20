@@ -99,6 +99,7 @@ public static class EnrolmentErrors
     public static readonly Error NotFound = Error.NotFound("Enrolment.NotFound", "That enrolment does not exist.");
     public static readonly Error AlreadyEnrolled = Error.Conflict("Enrolment.AlreadyEnrolled", "You are already enrolled in this course.");
     public static readonly Error Full = Error.Conflict("Enrolment.Full", "The next intake is full.");
+    public static readonly Error NotOpen = Error.Conflict("Enrolment.NotOpen", "Enrolment for the next intake has not opened yet.");
 
     public static Error Field(string field, string message)
         => Error.Validation($"Enrolment.{field}", message).ForField(field);

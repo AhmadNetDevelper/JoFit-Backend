@@ -13,6 +13,9 @@ public sealed record NextIntakeRequest
     /// <summary>yyyy-MM-dd.</summary>
     public string? StartsOn { get; init; }
     public int? SeatsTotal { get; init; }
+
+    /// <summary>auto (default), soon, open or full. Absent means auto.</summary>
+    public string? Status { get; init; }
 }
 
 public sealed record MoneyRequest
@@ -20,6 +23,16 @@ public sealed record MoneyRequest
     /// <summary>Minor units of JOD (3 decimals): 28000 is 28.000 JOD.</summary>
     public long Amount { get; init; }
     public string Currency { get; init; } = "JOD";
+}
+
+public sealed record CourseModuleRequest
+{
+    public int SortOrder { get; init; }
+    public LocalizedTextRequest Title { get; init; } = new();
+    public LocalizedTextRequest? Summary { get; init; }
+
+    /// <summary>Optional length in minutes.</summary>
+    public int? DurationMinutes { get; init; }
 }
 
 /// <summary>Create and update body of a course. A new course is always a draft.</summary>
@@ -33,6 +46,9 @@ public sealed record CourseDraftRequest
     public string Level { get; init; } = string.Empty;
     public decimal DurationHours { get; init; }
     public int ModuleCount { get; init; }
+
+    /// <summary>Syllabus, at most 200. Absent keeps the saved modules, a list replaces them (and sets moduleCount).</summary>
+    public List<CourseModuleRequest>? Modules { get; init; }
     public MoneyRequest Price { get; init; } = new();
     public MoneyRequest? CompareAtPrice { get; init; }
     public List<long> CategoryIds { get; init; } = [];
@@ -46,6 +62,9 @@ public sealed record CourseDraftRequest
     public LocalizedTextRequest? Venue { get; init; }
     public CertificationRequest? Certification { get; init; }
     public NextIntakeRequest? NextIntake { get; init; }
+
+    /// <summary>Position in the catalogue (ascending). Absent keeps it; a new course goes last.</summary>
+    public int? DisplayOrder { get; init; }
 
     /// <summary>Absent keeps the gallery, a list replaces it, an empty list clears it.</summary>
     public List<MediaImageRequest>? Media { get; init; }

@@ -111,6 +111,7 @@ public class JoFitDbContext(DbContextOptions<JoFitDbContext> options, IMediator 
     public DbSet<CourseCategoryLink> CourseCategoryLinks => Set<CourseCategoryLink>();
     public DbSet<CourseInstructorLink> CourseInstructorLinks => Set<CourseInstructorLink>();
     public DbSet<CourseSportLink> CourseSportLinks => Set<CourseSportLink>();
+    public DbSet<CourseModule> CourseModules => Set<CourseModule>();
     public DbSet<RecordMedia> RecordMedia => Set<RecordMedia>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<AccountSession> AccountSessions => Set<AccountSession>();

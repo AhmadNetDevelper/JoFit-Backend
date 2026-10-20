@@ -16,7 +16,8 @@ public sealed record CourseDraftInput(
     IReadOnlyList<long> CategoryIds,
     IReadOnlyList<GalleryItem>? Media,
     IReadOnlyList<long>? InstructorIds = null,
-    IReadOnlyList<long>? SportIds = null);
+    IReadOnlyList<long>? SportIds = null,
+    IReadOnlyList<CourseModuleInput>? Modules = null);
 
 public sealed record CreateCourseDraftCommand(CourseDraftInput Input) : IRequest<Result<AdminCourseDto>>;
 
@@ -68,6 +69,20 @@ internal static class CourseSaving
         return found == ids.Count ? null : CourseErrors.Field("sportIds", "One of the sports does not exist.");
     }
 
+    /// <summary>Absent (null) keeps the modules; a list (even empty) replaces them. The stored count follows the rows.</summary>
+    public static async Task ReplaceModulesAsync(IUnitOfWork unitOfWork, Course course, IReadOnlyList<CourseModuleInput>? modules, CancellationToken ct)
+    {
+        if (modules is null)
+        {
+            return;
+        }
+
+        var db = unitOfWork.GetDbContext();
+        db.RemoveRange(await db.Set<CourseModule>().Where(m => m.CourseId == course.Id).ToListAsync(ct));
+        db.AddRange(modules.Select(m => CourseModule.From(course.Id, m)));
+        course.SetModuleCount(modules.Count);
+    }
+
     public static async Task ReplaceSportsAsync(IUnitOfWork unitOfWork, long courseId, IReadOnlyList<long>? sportIds, CancellationToken ct)
     {
         // Absent (null) keeps the sports; a list (even empty) replaces them.
@@ -113,7 +128,9 @@ internal static class CourseSaving
             .Where(l => l.CourseId == course.Id).Select(l => l.CoachId).OrderBy(id => id).ToListAsync(ct);
         var sportIds = await unitOfWork.GetDbContext().Set<CourseSportLink>().AsNoTracking()
             .Where(l => l.CourseId == course.Id).Select(l => l.SportId).OrderBy(id => id).ToListAsync(ct);
-        return AdminCourseDto.From(course, categoryIds, media.GetValueOrDefault(course.Id) ?? [], seats, counts.GetValueOrDefault(course.Id), instructorIds, sportIds);
+        var modules = await CourseModuleMapper.LoadAsync(unitOfWork, [course.Id], ct);
+        return AdminCourseDto.From(course, categoryIds, media.GetValueOrDefault(course.Id) ?? [], seats, counts.GetValueOrDefault(course.Id), instructorIds, sportIds,
+            CourseModuleMapper.ToAdmin(modules.GetValueOrDefault(course.Id)));
     }
 }
 
@@ -142,6 +159,11 @@ public class CreateCourseDraftCommandHandler(IUnitOfWork unitOfWork, IUrlService
             errors.Add(sportError);
         }
 
+        if (input.Modules is not null)
+        {
+            errors.AddRange(CourseModule.Validate(input.Modules));
+        }
+
         if (errors.Count > 0)
         {
             return errors;
@@ -157,7 +179,10 @@ public class CreateCourseDraftCommandHandler(IUnitOfWork unitOfWork, IUrlService
             return CourseErrors.SlugTaken;
         }
 
-        course.ApplyDetails(input.Details with { Slug = Slugger.Unique(baseSlug.Length == 0 ? "course" : baseSlug, taken2.Contains) }, today, intakeChanged: true);
+        // A new course goes to the end of the catalogue unless the form gave a position.
+        var displayOrder = input.Details.DisplayOrder
+            ?? (await repository.GetTableNoTracking().Select(c => (int?)c.DisplayOrder).MaxAsync(ct) ?? -1) + 1;
+        course.ApplyDetails(input.Details with { Slug = Slugger.Unique(baseSlug.Length == 0 ? "course" : baseSlug, taken2.Contains), DisplayOrder = displayOrder }, today, intakeChanged: true);
 
         await unitOfWork.BeginTransactionAsync(ct);
         try
@@ -167,6 +192,7 @@ public class CreateCourseDraftCommandHandler(IUnitOfWork unitOfWork, IUrlService
             await CourseSaving.ReplaceCategoriesAsync(unitOfWork, course.Id, input.CategoryIds, ct);
             await CourseSaving.ReplaceInstructorsAsync(unitOfWork, course.Id, input.InstructorIds, ct);
             await CourseSaving.ReplaceSportsAsync(unitOfWork, course.Id, input.SportIds, ct);
+            await CourseSaving.ReplaceModulesAsync(unitOfWork, course, input.Modules, ct);
 
             if (input.Media is not null)
             {
@@ -235,6 +261,11 @@ public class UpdateCourseDetailsCommandHandler(IUnitOfWork unitOfWork, IUrlServi
             errors.Add(sportError);
         }
 
+        if (input.Modules is not null)
+        {
+            errors.AddRange(CourseModule.Validate(input.Modules));
+        }
+
         if (errors.Count > 0)
         {
             return errors;
@@ -246,6 +277,7 @@ public class UpdateCourseDetailsCommandHandler(IUnitOfWork unitOfWork, IUrlServi
             await CourseSaving.ReplaceCategoriesAsync(unitOfWork, course.Id, input.CategoryIds, ct);
             await CourseSaving.ReplaceInstructorsAsync(unitOfWork, course.Id, input.InstructorIds, ct);
             await CourseSaving.ReplaceSportsAsync(unitOfWork, course.Id, input.SportIds, ct);
+            await CourseSaving.ReplaceModulesAsync(unitOfWork, course, input.Modules, ct);
             if (input.Media is not null)
             {
                 var gallery = await GalleryService.SyncAsync(unitOfWork, urlService, CourseSaving.OwnerType, course.Id, CourseSaving.MediaField, input.Media, ct);

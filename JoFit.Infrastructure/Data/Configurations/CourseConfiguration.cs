@@ -42,6 +42,9 @@ public class CourseConfiguration : IEntityTypeConfiguration<Course>
         builder.Property(x => x.CertificationIssuedByEn).HasMaxLength(200);
         builder.Property(x => x.CertificationIssuedByAr).HasMaxLength(200);
         builder.HasIndex(x => x.Slug).IsUnique().HasFilter("\"Slug\" IS NOT NULL AND \"IsDeleted\" = false");
+        builder.Property(x => x.IntakeStatus).IsRequired().HasMaxLength(10).HasDefaultValue("auto");
+        builder.Property(x => x.DisplayOrder).IsRequired();
+        builder.HasIndex(x => new { x.DisplayOrder, x.Id });
         builder.Ignore(x => x.LanguageList);
         builder.Ignore(x => x.IsPublished);
 
@@ -76,6 +79,22 @@ public class CourseSportLinkConfiguration : IEntityTypeConfiguration<CourseSport
         builder.HasKey(x => new { x.CourseId, x.SportId });
         builder.HasIndex(x => x.SportId);
         builder.ToTable("CourseSportLinks");
+    }
+}
+
+public class CourseModuleConfiguration : IEntityTypeConfiguration<CourseModule>
+{
+    public void Configure(EntityTypeBuilder<CourseModule> builder)
+    {
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).ValueGeneratedOnAdd();
+        builder.Property(x => x.TitleEn).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.TitleAr).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.SummaryEn).HasMaxLength(1000);
+        builder.Property(x => x.SummaryAr).HasMaxLength(1000);
+        builder.HasOne<Course>().WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(x => new { x.CourseId, x.SortOrder });
+        builder.ToTable("CourseModules");
     }
 }
 

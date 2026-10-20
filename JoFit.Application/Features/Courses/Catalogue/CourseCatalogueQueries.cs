@@ -52,16 +52,8 @@ public class GetAdminCoursesQueryHandler(IUnitOfWork unitOfWork)
                                      || (c.Slug != null && c.Slug.Contains(term)));
         }
 
-        var descending = string.Equals(request.SortDir, "desc", StringComparison.OrdinalIgnoreCase);
-        query = request.SortField?.ToLowerInvariant() switch
-        {
-            "title" => descending ? query.OrderByDescending(c => c.NameEn) : query.OrderBy(c => c.NameEn),
-            "status" => descending ? query.OrderByDescending(c => c.Status) : query.OrderBy(c => c.Status),
-            "updatedat" => descending
-                ? query.OrderByDescending(c => c.LastModifiedUtc ?? c.CreatedAtUtc)
-                : query.OrderBy(c => c.LastModifiedUtc ?? c.CreatedAtUtc),
-            _ => query.OrderBy(c => c.Id)
-        };
+        // Always the storefront order, so the site and the admin never disagree.
+        query = query.OrderBy(c => c.DisplayOrder);
 
         var page = await query.ToPagedResultAsync(request.Page, request.PageSize, ct);
         var ids = page.Items.Select(c => c.Id).ToList();
@@ -72,6 +64,7 @@ public class GetAdminCoursesQueryHandler(IUnitOfWork unitOfWork)
         var counts = await CourseSeats.EnrolmentCountsAsync(unitOfWork, ids, ct);
         var instructorLinks = await db.Set<CourseInstructorLink>().AsNoTracking().Where(l => ids.Contains(l.CourseId)).ToListAsync(ct);
         var sportLinks = await db.Set<CourseSportLink>().AsNoTracking().Where(l => ids.Contains(l.CourseId)).ToListAsync(ct);
+        var modules = await CourseModuleMapper.LoadAsync(unitOfWork, ids, ct);
         var items = page.Items.Select(c => AdminCourseDto.From(
             c,
             links.Where(l => l.CourseId == c.Id).Select(l => l.CourseCategoryId).OrderBy(x => x).ToList(),
@@ -79,7 +72,8 @@ public class GetAdminCoursesQueryHandler(IUnitOfWork unitOfWork)
             seats.GetValueOrDefault(c.Id),
             counts.GetValueOrDefault(c.Id),
             instructorLinks.Where(l => l.CourseId == c.Id).Select(l => l.CoachId).OrderBy(x => x).ToList(),
-            sportLinks.Where(l => l.CourseId == c.Id).Select(l => l.SportId).OrderBy(x => x).ToList())).ToList();
+            sportLinks.Where(l => l.CourseId == c.Id).Select(l => l.SportId).OrderBy(x => x).ToList(),
+            CourseModuleMapper.ToAdmin(modules.GetValueOrDefault(c.Id)))).ToList();
         return new PagedResult<AdminCourseDto>(items, page.Page, page.PageSize, page.TotalCount);
     }
 }
@@ -104,7 +98,9 @@ public class GetAdminCourseQueryHandler(IUnitOfWork unitOfWork)
             .Where(l => l.CourseId == course.Id).Select(l => l.CoachId).OrderBy(id => id).ToListAsync(ct);
         var sportIds = await unitOfWork.GetDbContext().Set<CourseSportLink>().AsNoTracking()
             .Where(l => l.CourseId == course.Id).Select(l => l.SportId).OrderBy(id => id).ToListAsync(ct);
-        return AdminCourseDto.From(course, categoryIds, media.GetValueOrDefault(course.Id) ?? [], seatsTaken, counts.GetValueOrDefault(course.Id), instructorIds, sportIds);
+        var modules = await CourseModuleMapper.LoadAsync(unitOfWork, [course.Id], ct);
+        return AdminCourseDto.From(course, categoryIds, media.GetValueOrDefault(course.Id) ?? [], seatsTaken, counts.GetValueOrDefault(course.Id), instructorIds, sportIds,
+            CourseModuleMapper.ToAdmin(modules.GetValueOrDefault(course.Id)));
     }
 }
 
@@ -175,8 +171,8 @@ public class GetPublicCoursesQueryHandler(IUnitOfWork unitOfWork, ILocalizationS
         {
             "price-asc" => query.OrderBy(c => c.PriceAmount).ThenBy(c => c.Id),
             "price-desc" => query.OrderByDescending(c => c.PriceAmount).ThenBy(c => c.Id),
-            "title" => arabic ? query.OrderBy(c => c.NameAr) : query.OrderBy(c => c.NameEn),
-            _ => query.OrderByDescending(c => c.PublishedAtUtc).ThenBy(c => c.Id)
+            "title" => (arabic ? query.OrderBy(c => c.NameAr) : query.OrderBy(c => c.NameEn)).ThenBy(c => c.Id),
+            _ => query.OrderBy(c => c.DisplayOrder).ThenBy(c => c.Id)
         };
 
         var page = await query.ToPagedResultAsync(request.Page, request.PageSize, ct, PagingExtensions.PublicMaxPageSize);
@@ -198,17 +194,19 @@ public class GetPublicCourseBySlugQueryHandler(IUnitOfWork unitOfWork, ILocaliza
             return CourseErrors.CourseNotFound;
         }
 
-        return (await PublicCourseMapper.MapAsync(unitOfWork, localization, request.Language, [course], ct))[0];
+        return (await PublicCourseMapper.MapAsync(unitOfWork, localization, request.Language, [course], ct, includeModules: true))[0];
     }
 }
 
 internal static class PublicCourseMapper
 {
     public static async Task<List<PublicCourseDto>> MapAsync(
-        IUnitOfWork unitOfWork, ILocalizationService localization, string language, IReadOnlyList<Course> courses, CancellationToken ct)
+        IUnitOfWork unitOfWork, ILocalizationService localization, string language, IReadOnlyList<Course> courses, CancellationToken ct, bool includeModules = false)
     {
         var ids = courses.Select(c => c.Id).ToList();
         var db = unitOfWork.GetDbContext();
+        // Only the detail page carries the syllabus; the list keeps just moduleCount.
+        var modules = includeModules ? await CourseModuleMapper.LoadAsync(unitOfWork, ids, ct) : null;
         var links = await db.Set<CourseCategoryLink>().AsNoTracking().Where(l => ids.Contains(l.CourseId)).ToListAsync(ct);
         var categoryIds = links.Select(l => l.CourseCategoryId).Distinct().ToList();
         var categories = await db.Set<CourseCategory>().AsNoTracking().Where(c => categoryIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
@@ -232,6 +230,7 @@ internal static class PublicCourseMapper
             media.GetValueOrDefault(c.Id) ?? [],
             seatsTaken: seats.GetValueOrDefault(c.Id),
             instructors: teachers.Where(t => t.CourseId == c.Id).Select(t => coaches.GetValueOrDefault(t.CoachId)).Where(x => x is not null)
-                .Select(x => new CourseCategoryRefDto(x!.Id, x.Slug, localization.GetLocalizedName(x.NameAr, x.NameEn, language))).ToList())).ToList();
+                .Select(x => new CourseCategoryRefDto(x!.Id, x.Slug, localization.GetLocalizedName(x.NameAr, x.NameEn, language))).ToList(),
+            modules: modules is null ? null : CourseModuleMapper.ToPublic(modules.GetValueOrDefault(c.Id), language))).ToList();
     }
 }

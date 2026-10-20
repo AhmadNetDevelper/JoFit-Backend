@@ -12,6 +12,51 @@ public static class CourseStatuses
     public static readonly string[] All = [Draft, Published, Archived];
 }
 
+/// <summary>What staff chose for the next intake. <c>auto</c> lets seats and dates decide.</summary>
+public static class IntakeStatuses
+{
+    public const string Auto = "auto";
+    public const string Soon = "soon";
+    public const string Open = "open";
+    public const string Full = "full";
+
+    public static readonly string[] All = [Auto, Soon, Open, Full];
+}
+
+/// <summary>The effective state of the next intake, as the site and the back-office both show it.</summary>
+public static class IntakeStates
+{
+    public const string Soon = "soon";
+    public const string Open = "open";
+    public const string Closing = "closing";
+    public const string Full = "full";
+
+    /// <summary>Seats left at or below which an automatic intake counts as closing.</summary>
+    public const int ClosingSeats = 3;
+
+    /// <summary>An automatic intake further away than this many days counts as soon.</summary>
+    public const int SoonDays = 49;
+
+    /// <summary>The single place the effective state is decided.</summary>
+    public static string Of(string status, DateOnly startsOn, int seatsTotal, int seatsTaken, DateOnly today)
+    {
+        switch (status)
+        {
+            case IntakeStatuses.Soon: return Soon;
+            case IntakeStatuses.Open: return Open;
+            case IntakeStatuses.Full: return Full;
+        }
+
+        var left = Math.Max(0, seatsTotal - seatsTaken);
+        if (left == 0) return Full;
+        if (startsOn.DayNumber - today.DayNumber > SoonDays) return Soon;
+        return left <= ClosingSeats ? Closing : Open;
+    }
+
+    /// <summary>Enrolment is refused while the intake is soon or full.</summary>
+    public static bool AcceptsEnrolment(string state) => state is Open or Closing;
+}
+
 public static class CourseFormats
 {
     public static readonly string[] All = ["in-person", "online", "hybrid"];
@@ -45,7 +90,9 @@ public sealed record CourseDetails(
     string? VenueAr,
     CourseCertification? Certification,
     DateOnly? IntakeStartsOn,
-    int? IntakeSeatsTotal);
+    int? IntakeSeatsTotal,
+    int? DisplayOrder = null,
+    string? IntakeStatus = null);
 
 /// <summary>The full-catalogue side of a course (the original entity is the name, plus an active flag).</summary>
 public partial class Course
@@ -75,11 +122,26 @@ public partial class Course
     public string? CertificationIssuedByAr { get; private set; }
     public DateOnly? IntakeStartsOn { get; private set; }
     public int? IntakeSeatsTotal { get; private set; }
+
+    /// <summary>What staff chose for the next intake: auto, soon, open or full.</summary>
+    public string IntakeStatus { get; private set; } = IntakeStatuses.Auto;
     public DateTimeOffset? PublishedAtUtc { get; private set; }
+
+    /// <summary>Position in the catalogue, ascending; ties break by id. The storefront and the back-office share it.</summary>
+    public int DisplayOrder { get; private set; }
 
     public IReadOnlyList<string> LanguageList => Languages.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
     public bool IsPublished => Status == CourseStatuses.Published;
+
+    /// <summary>Keeps the stored count equal to the number of module rows.</summary>
+    public void SetModuleCount(int count) => ModuleCount = count;
+
+    /// <summary>The effective state of the next intake, or null when the course has none.</summary>
+    public string? IntakeState(int seatsTaken, DateOnly today)
+        => IntakeStartsOn is DateOnly startsOn && IntakeSeatsTotal is int total
+            ? IntakeStates.Of(IntakeStatus, startsOn, total, seatsTaken, today)
+            : null;
 
     /// <summary>Creates a draft. The back-office never creates a published course directly.</summary>
     public static Result<Course> CreateDraft(CourseDetails details, DateOnly today)
@@ -112,6 +174,7 @@ public partial class Course
         if (d.DurationHours <= 0 || d.DurationHours > 2000) errors.Add(CourseErrors.Field("durationHours", "Duration must be more than 0 and at most 2000 hours."));
         if (d.ModuleCount is < 0 or > 200) errors.Add(CourseErrors.Field("moduleCount", "Modules must be a whole number from 0 to 200."));
         if (d.PriceAmount < 0) errors.Add(CourseErrors.Field("price", "The price cannot be negative."));
+        if (d.DisplayOrder is < 0) errors.Add(CourseErrors.Field("displayOrder", "The display order cannot be negative."));
         if (d.CompareAtAmount is long compareAt && compareAt <= d.PriceAmount) errors.Add(CourseErrors.Field("compareAtPrice", "The compare-at price must be higher than the price."));
 
         var languages = (d.Languages ?? []).Select(l => l.Trim().ToLowerInvariant()).Where(l => l.Length > 0).Distinct().ToList();
@@ -145,6 +208,9 @@ public partial class Course
             else if (seats < seatsTaken) errors.Add(CourseErrors.Field("nextIntake.seatsTotal", $"{seatsTaken} seats are already taken."));
         }
 
+        var intakeStatus = string.IsNullOrWhiteSpace(d.IntakeStatus) ? IntakeStatuses.Auto : d.IntakeStatus.Trim().ToLowerInvariant();
+        if (!IntakeStatuses.All.Contains(intakeStatus)) errors.Add(CourseErrors.Field("nextIntake.status", "Choose auto, soon, open or full."));
+
         if (IsPublished && (descriptionEn is null || descriptionAr is null))
         {
             errors.Add(CourseErrors.Field("description", "A published course needs its description in every language."));
@@ -177,6 +243,8 @@ public partial class Course
         CertificationIssuedByAr = certification?.IssuedByAr.Trim();
         IntakeStartsOn = d.IntakeStartsOn;
         IntakeSeatsTotal = d.IntakeSeatsTotal;
+        IntakeStatus = intakeStatus;
+        if (d.DisplayOrder is int displayOrder) DisplayOrder = displayOrder;
         return Result.Updated;
     }
 
