@@ -12,7 +12,7 @@ public class UserEducation : AuditableEntity
     public long AcademicDegreeId { get; private set; }
     public long UniversityMajorId { get; private set; }
     public DateTime StartDate { get; private set; }
-    public DateTime EndDate { get; private set; }
+    public DateTime? EndDate { get; private set; }
     public bool IsStillEducation { get; private set; }
 
     public AcademicDegree? AcademicDegree { get; private set; }
@@ -28,7 +28,7 @@ public class UserEducation : AuditableEntity
         long academicDegreeId,
         long universityMajorId,
         DateTime startDate,
-        DateTime endDate,
+        DateTime? endDate,
         bool isStillEducation) : base()
     {
         UserId = userId;
@@ -49,7 +49,7 @@ public class UserEducation : AuditableEntity
         long academicDegreeId,
         long universityMajorId,
         DateTime startDate,
-        DateTime endDate,
+        DateTime? endDate,
         bool isStillEducation = false)
     {
         if (userId <= 0)
@@ -74,7 +74,7 @@ public class UserEducation : AuditableEntity
         long academicDegreeId,
         long universityMajorId,
         DateTime startDate,
-        DateTime endDate,
+        DateTime? endDate,
         bool isStillEducation)
     {
         var validation = Validate(schoolName, academicDegreeId, universityMajorId, startDate, endDate);
@@ -98,7 +98,7 @@ public class UserEducation : AuditableEntity
         long academicDegreeId,
         long universityMajorId,
         DateTime startDate,
-        DateTime endDate)
+        DateTime? endDate)
     {
         if (string.IsNullOrWhiteSpace(schoolName))
         {
@@ -120,7 +120,7 @@ public class UserEducation : AuditableEntity
             return UserEducationErrors.UniversityMajorIdRequired;
         }
 
-        if (endDate < startDate)
+        if (endDate.HasValue && endDate.Value < startDate)
         {
             return UserEducationErrors.EndDateBeforeStartDate;
         }

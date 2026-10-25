@@ -19,7 +19,7 @@ namespace JoFit.API.Infrastructure
                 {
                     Type = exception.GetType().Name,
                     Title = "Application error",
-                    Detail = exception.Message,
+                    Detail = exception.GetBaseException().Message,
                 }
             });
         }

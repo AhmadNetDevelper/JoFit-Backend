@@ -37,7 +37,7 @@ public sealed class JobTypeController(ISender sender, ILocalizationService local
     }
 
     [HttpGet("all")]
-    [Authorize(Permissions.JobTypes.Read)]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(List<JobTypeLookupDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [EndpointSummary("Gets all active job types (Id and localized Name).")]

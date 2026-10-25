@@ -1,6 +1,7 @@
 using JoFit.Application.Common.Interfaces;
 using JoFit.Domain.AcademicDegrees;
 using JoFit.Domain.Attachments;
+using JoFit.Domain.Coaches;
 using JoFit.Domain.Common.Results;
 using JoFit.Domain.Courses;
 using JoFit.Domain.JobTypes;
@@ -133,6 +134,32 @@ internal static class CoachUserProfile
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Mirrors the submitted certificates onto the coach page, where an admin can verify them. A certificate that is
+    /// already there (same name and issuer) is kept, so a verification survives an update; the rest are added or removed.
+    /// </summary>
+    public static void SyncCoachCertifications(Coach coach, IEnumerable<CoachCertificateInput> inputs, IUnitOfWork unitOfWork)
+    {
+        var wanted = inputs
+            .GroupBy(c => (Name: c.CertificateName.Trim(), Issuer: c.OrganizationName.Trim()))
+            .Select(g => (g.Key.Name, g.Key.Issuer, g.First().IssuedDate.Year))
+            .ToList();
+
+        var stale = coach.Certifications
+            .Where(x => !wanted.Any(w => w.Name == x.NameEn && w.Issuer == x.IssuerEn))
+            .ToList();
+        unitOfWork.GetDbContext().RemoveRange(stale);
+        foreach (var item in stale)
+        {
+            coach.Certifications.Remove(item);
+        }
+
+        foreach (var (name, issuer, year) in wanted.Where(w => !coach.Certifications.Any(x => x.NameEn == w.Name && x.IssuerEn == w.Issuer)))
+        {
+            coach.Certifications.Add(CoachCertification.Create(name, name, issuer, issuer, year));
+        }
     }
 
     public static async Task<Error?> CheckReferencesAsync(IUnitOfWork unitOfWork, CoachUserData request, CancellationToken ct)

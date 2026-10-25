@@ -16,7 +16,7 @@ public sealed record UserEducationRequest
 
     public DateTime StartDate { get; init; }
 
-    public DateTime EndDate { get; init; }
+    public DateTime? EndDate { get; init; }
 
     public bool IsStillEducation { get; init; }
 }

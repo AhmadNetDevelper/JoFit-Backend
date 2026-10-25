@@ -37,7 +37,7 @@ public sealed class CountryController(ISender sender, ILocalizationService local
     }
 
     [HttpGet("all")]
-    [Authorize(Permissions.Countries.Read)]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(List<CountryLookupDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [EndpointSummary("Gets all active countries (Id and localized Name).")]

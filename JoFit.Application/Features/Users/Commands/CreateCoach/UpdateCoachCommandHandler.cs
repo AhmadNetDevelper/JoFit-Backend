@@ -55,6 +55,8 @@ public class UpdateCoachCommandHandler(
             return errors;
         }
 
+        CoachUserProfile.SyncCoachCertifications(coach, request.Certificates, unitOfWork);
+
         var uploadedFiles = new List<string>();
         var oldFiles = new List<string>();
 
@@ -94,7 +96,7 @@ public class UpdateCoachCommandHandler(
             await fileUploadService.DeleteFileAsync(file, ct);
         }
 
-        return await CoachSaving.ToDtoAsync(unitOfWork, coach.Id, ct);
+        return await CoachSaving.ToDtoAsync(unitOfWork, urlService, coach.Id, ct);
     }
 
     /// <summary>Soft-deletes the user's education, experience, skills and certificates (with their files' records).</summary>

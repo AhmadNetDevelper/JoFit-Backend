@@ -23,7 +23,7 @@ public sealed record CoachEducationInput(
     long AcademicDegreeId,
     long UniversityMajorId,
     DateTime StartDate,
-    DateTime EndDate,
+    DateTime? EndDate,
     bool IsStillEducation);
 
 public sealed record CoachCertificateInput(

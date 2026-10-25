@@ -1801,11 +1801,11 @@ namespace JoFit.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DisplayOrder", "Id");
-
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasFilter("\"Slug\" IS NOT NULL AND \"IsDeleted\" = false");
+
+                    b.HasIndex("DisplayOrder", "Id");
 
                     b.ToTable("Courses", (string)null);
                 });
@@ -4250,7 +4250,7 @@ namespace JoFit.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("DeletedUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime>("EndDate")
+                    b.Property<DateTime?>("EndDate")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsDeleted")

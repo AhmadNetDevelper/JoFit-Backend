@@ -58,6 +58,8 @@ public class CreateCoachCommandHandler(
             coach.Packages.Add(CoachPackage.Create(request.Profile.Details.Packages[i] with { Id = null }, i));
         }
 
+        CoachUserProfile.SyncCoachCertifications(coach, request.Certificates, unitOfWork);
+
         var uploadedFiles = new List<string>();
 
         await unitOfWork.BeginTransactionAsync(ct);

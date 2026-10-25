@@ -7,8 +7,13 @@ using JoFit.Domain.CoachSpecialisations;
 using JoFit.Domain.Coaches;
 using JoFit.Domain.Common.Results;
 using JoFit.Domain.Customers;
+using JoFit.Domain.Identity.Users;
 using JoFit.Domain.Locations;
 using JoFit.Domain.Sports;
+using JoFit.Domain.UserCertificates;
+using JoFit.Domain.UserEducations;
+using JoFit.Domain.UserExperiences;
+using JoFit.Domain.UserSkills;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -156,7 +161,7 @@ internal static class CoachSaving
         return Result.Updated;
     }
 
-    public static async Task<AdminCoachDto> ToDtoAsync(IUnitOfWork unitOfWork, long id, CancellationToken ct)
+    public static async Task<AdminCoachDto> ToDtoAsync(IUnitOfWork unitOfWork, IUrlService urlService, long id, CancellationToken ct)
     {
         var db = unitOfWork.GetDbContext();
         var coach = await db.Set<Coach>().AsNoTracking().Include(c => c.Packages).Include(c => c.Certifications).FirstAsync(c => c.Id == id, ct);
@@ -165,7 +170,37 @@ internal static class CoachSaving
         var avatar = await GalleryService.LoadAsync(unitOfWork, OwnerType, "avatar", [id], ct);
         var gallery = await GalleryService.LoadAsync(unitOfWork, OwnerType, "gallery", [id], ct);
         var completed = await db.Set<CoachBooking>().CountAsync(b => b.CoachId == id && b.Status == CoachBookingStatuses.Completed, ct);
-        return AdminCoachDto.From(coach, sportIds, specIds, avatar.GetValueOrDefault(id)?.FirstOrDefault(), gallery.GetValueOrDefault(id) ?? [], completed);
+        var dto = AdminCoachDto.From(coach, sportIds, specIds, avatar.GetValueOrDefault(id)?.FirstOrDefault(), gallery.GetValueOrDefault(id) ?? [], completed);
+        if (coach.UserId is not long userId)
+        {
+            return dto;
+        }
+
+        var user = await db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
+        var educations = await db.Set<UserEducation>().AsNoTracking().Include(x => x.AcademicDegree).Include(x => x.UniversityMajor)
+            .Where(x => x.UserId == userId).OrderBy(x => x.Id).ToListAsync(ct);
+        var experiences = await db.Set<UserExperience>().AsNoTracking().Include(x => x.JobType)
+            .Where(x => x.UserId == userId).OrderBy(x => x.Id).ToListAsync(ct);
+        var certificates = await db.Set<UserCertificate>().AsNoTracking().Where(x => x.UserId == userId).OrderBy(x => x.Id).ToListAsync(ct);
+        var skills = await db.Set<UserSkill>().AsNoTracking().Include(x => x.Course).Where(x => x.UserId == userId).OrderBy(x => x.Id).ToListAsync(ct);
+
+        return dto with
+        {
+            Account = user is null ? null : new CoachAccountDto(
+                user.Id, user.UserName ?? string.Empty, user.FullName, user.PhoneNumber, user.BirthOfDate, (int)user.GenderId,
+                user.CountryId, user.CityId, user.JobStatusId, user.IsActive, urlService.ToAbsoluteUrl(user.ProfileImageUrl)),
+            Educations = educations.Select(x => new CoachEducationDto(
+                x.Id, x.SchoolName, x.AcademicDegreeId, x.AcademicDegree is null ? null : new LocalizedText(x.AcademicDegree.NameEn, x.AcademicDegree.NameAr),
+                x.UniversityMajorId, x.UniversityMajor is null ? null : new LocalizedText(x.UniversityMajor.NameEn, x.UniversityMajor.NameAr),
+                x.StartDate, x.EndDate, x.IsStillEducation)).ToList(),
+            Experiences = experiences.Select(x => new CoachExperienceDto(
+                x.Id, x.Address, x.JobTypeId, x.JobType is null ? null : new LocalizedText(x.JobType.NameEn, x.JobType.NameAr),
+                x.CompanyName, x.CompanyAddress, x.StartDate, x.EndDate, x.IsStillWorking)).ToList(),
+            UserCertificates = certificates.Select(x => new CoachUserCertificateDto(
+                x.Id, x.CertificateName, x.OrganizationName, x.IssuedDate, x.ExpiryDate, x.CredentialId, x.CredentialUrl, urlService.ToAbsoluteUrl(x.CertificateUrl))).ToList(),
+            Skills = skills.Select(x => new CoachSkillDto(
+                x.Id, x.CourseId, x.Course is null ? null : new LocalizedText(x.Course.NameEn, x.Course.NameAr), x.PercentageScore)).ToList()
+        };
     }
 
     /// <summary>Matches packages by id (keeping bookings pointed at the right one), adds new ones and retires the rest.</summary>
@@ -269,7 +304,7 @@ public class CreateCoachProfileCommandHandler(IUnitOfWork unitOfWork, IUrlServic
             throw;
         }
 
-        return await CoachSaving.ToDtoAsync(unitOfWork, coach.Id, ct);
+        return await CoachSaving.ToDtoAsync(unitOfWork, urlService, coach.Id, ct);
     }
 }
 
@@ -316,7 +351,7 @@ public class UpdateCoachProfileCommandHandler(IUnitOfWork unitOfWork, IUrlServic
             throw;
         }
 
-        return await CoachSaving.ToDtoAsync(unitOfWork, coach.Id, ct);
+        return await CoachSaving.ToDtoAsync(unitOfWork, urlService, coach.Id, ct);
     }
 }
 
@@ -357,7 +392,7 @@ public class DeleteCoachProfileCommandHandler(IUnitOfWork unitOfWork, IAccountSe
     }
 }
 
-public class DecideCoachVerificationCommandHandler(IUnitOfWork unitOfWork)
+public class DecideCoachVerificationCommandHandler(IUnitOfWork unitOfWork, IUrlService urlService)
     : IRequestHandler<DecideCoachVerificationCommand, Result<AdminCoachDto>>
 {
     public async Task<Result<AdminCoachDto>> Handle(DecideCoachVerificationCommand request, CancellationToken ct)
@@ -375,11 +410,11 @@ public class DecideCoachVerificationCommandHandler(IUnitOfWork unitOfWork)
         }
 
         await unitOfWork.SaveChangesAsync(ct);
-        return await CoachSaving.ToDtoAsync(unitOfWork, coach.Id, ct);
+        return await CoachSaving.ToDtoAsync(unitOfWork, urlService, coach.Id, ct);
     }
 }
 
-public class SetCoachCertificationVerifiedCommandHandler(IUnitOfWork unitOfWork)
+public class SetCoachCertificationVerifiedCommandHandler(IUnitOfWork unitOfWork, IUrlService urlService)
     : IRequestHandler<SetCoachCertificationVerifiedCommand, Result<AdminCoachDto>>
 {
     public async Task<Result<AdminCoachDto>> Handle(SetCoachCertificationVerifiedCommand request, CancellationToken ct)
@@ -393,7 +428,7 @@ public class SetCoachCertificationVerifiedCommandHandler(IUnitOfWork unitOfWork)
 
         certification.SetVerified(request.IsVerified);
         await unitOfWork.SaveChangesAsync(ct);
-        return await CoachSaving.ToDtoAsync(unitOfWork, request.CoachId, ct);
+        return await CoachSaving.ToDtoAsync(unitOfWork, urlService, request.CoachId, ct);
     }
 }
 

@@ -28,7 +28,7 @@ public class UserEducationConfiguration : IEntityTypeConfiguration<UserEducation
             .IsRequired();
 
         builder.Property(x => x.EndDate)
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(x => x.IsStillEducation)
             .IsRequired();

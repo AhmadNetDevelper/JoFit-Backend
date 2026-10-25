@@ -20,6 +20,25 @@ public sealed record CoachCertificationDto(long Id, LocalizedText Name, Localize
 
 public sealed record LocationDto(long Id, string Slug, LocalizedText Name);
 
+/// <summary>The login account behind a coach: the personal data entered on the sign-up form.</summary>
+public sealed record CoachAccountDto(
+    long UserId, string UserName, string FullName, string? PhoneNumber, DateTime? BirthOfDate, int GenderId,
+    long? CountryId, long? CityId, long? JobStatusId, bool IsActive, string? ProfileImageUrl);
+
+public sealed record CoachEducationDto(
+    long Id, string SchoolName, long AcademicDegreeId, LocalizedText? AcademicDegree, long UniversityMajorId, LocalizedText? UniversityMajor,
+    DateTime StartDate, DateTime? EndDate, bool IsStillEducation);
+
+public sealed record CoachExperienceDto(
+    long Id, string Address, long JobTypeId, LocalizedText? JobType, string CompanyName, string CompanyAddress,
+    DateTime StartDate, DateTime? EndDate, bool IsStillWorking);
+
+public sealed record CoachUserCertificateDto(
+    long Id, string CertificateName, string OrganizationName, DateTime IssuedDate, DateTime ExpiryDate,
+    string CredentialId, string? CredentialUrl, string? CertificateUrl);
+
+public sealed record CoachSkillDto(long Id, long CourseId, LocalizedText? Course, short PercentageScore);
+
 public sealed record AdminCoachDto(
     long Id,
     string Slug,
@@ -44,6 +63,13 @@ public sealed record AdminCoachDto(
     bool HasLogin,
     AuditDto Audit)
 {
+    // Filled by the single-coach read only; the list leaves them empty.
+    public CoachAccountDto? Account { get; init; }
+    public IReadOnlyList<CoachEducationDto> Educations { get; init; } = [];
+    public IReadOnlyList<CoachExperienceDto> Experiences { get; init; } = [];
+    public IReadOnlyList<CoachUserCertificateDto> UserCertificates { get; init; } = [];
+    public IReadOnlyList<CoachSkillDto> Skills { get; init; } = [];
+
     public static AdminCoachDto From(
         Coach c, IReadOnlyList<long> sportIds, IReadOnlyList<long> specialisationIds, MediaImageDto? avatar,
         IReadOnlyList<MediaImageDto> gallery, int completedSessions)

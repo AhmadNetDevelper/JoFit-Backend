@@ -37,7 +37,7 @@ public sealed class AcademicDegreeController(ISender sender, ILocalizationServic
     }
 
     [HttpGet("all")]
-    [Authorize(Permissions.AcademicDegrees.Read)]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(List<AcademicDegreeLookupDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [EndpointSummary("Gets all active academic degrees (Id and localized Name).")]

@@ -36,7 +36,7 @@ public sealed class CourseController(ISender sender, ILocalizationService locali
     }
 
     [HttpGet("all")]
-    [Authorize(Permissions.Courses.Read)]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(List<CourseLookupDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [EndpointSummary("Gets all active courses (Id and localized Name).")]

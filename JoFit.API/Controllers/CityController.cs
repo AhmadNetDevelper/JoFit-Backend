@@ -38,7 +38,7 @@ public sealed class CityController(ISender sender, ILocalizationService localiza
     }
 
     [HttpGet("by-country/{countryId:long}")]
-    [Authorize(Permissions.Cities.Read)]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(List<CityLookupDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [EndpointSummary("Gets all active cities of a country (Id and localized Name).")]

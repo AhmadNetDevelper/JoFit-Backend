@@ -7,6 +7,7 @@ using JoFit.Domain.CoachSpecialisations;
 using JoFit.Domain.Coaches;
 using JoFit.Domain.Common.Results;
 using JoFit.Domain.Customers;
+using JoFit.Domain.Identity.Users;
 using JoFit.Domain.Locations;
 using JoFit.Domain.Sports;
 using MediatR;
@@ -101,12 +102,12 @@ public class GetAdminCoachesQueryHandler(IUnitOfWork unitOfWork)
     }
 }
 
-public class GetAdminCoachQueryHandler(IUnitOfWork unitOfWork) : IRequestHandler<GetAdminCoachQuery, Result<AdminCoachDto>>
+public class GetAdminCoachQueryHandler(IUnitOfWork unitOfWork, IUrlService urlService) : IRequestHandler<GetAdminCoachQuery, Result<AdminCoachDto>>
 {
     public async Task<Result<AdminCoachDto>> Handle(GetAdminCoachQuery request, CancellationToken ct)
     {
         var exists = await unitOfWork.GetRepository<Coach>().GetTableNoTracking().AnyAsync(c => c.Id == request.Id, ct);
-        return exists ? await CoachSaving.ToDtoAsync(unitOfWork, request.Id, ct) : CoachErrors.NotFound;
+        return exists ? await CoachSaving.ToDtoAsync(unitOfWork, urlService, request.Id, ct) : CoachErrors.NotFound;
     }
 }
 
@@ -195,7 +196,7 @@ public sealed record GetPublicCoachBySlugQuery(string Slug, string Language) : I
 
 public sealed record GetCoachAvailabilityQuery(long CoachId, DateOnly? From, DateOnly? To) : IRequest<Result<List<CoachSlotDto>>>;
 
-public class GetPublicCoachesQueryHandler(IUnitOfWork unitOfWork, ILocalizationService localization)
+public class GetPublicCoachesQueryHandler(IUnitOfWork unitOfWork, ILocalizationService localization, IUrlService urlService)
     : IRequestHandler<GetPublicCoachesQuery, Result<PagedResult<PublicCoachDto>>>
 {
     public async Task<Result<PagedResult<PublicCoachDto>>> Handle(GetPublicCoachesQuery request, CancellationToken ct)
@@ -246,12 +247,12 @@ public class GetPublicCoachesQueryHandler(IUnitOfWork unitOfWork, ILocalizationS
         };
 
         var page = await query.ToPagedResultAsync(request.Page, request.PageSize, ct, PagingExtensions.PublicMaxPageSize);
-        var items = await PublicCoachMapper.MapAsync(unitOfWork, localization, request.Language, page.Items.Select(c => c.Id).ToList(), ct);
+        var items = await PublicCoachMapper.MapAsync(unitOfWork, localization, urlService, request.Language, page.Items.Select(c => c.Id).ToList(), ct);
         return new PagedResult<PublicCoachDto>(items, page.Page, page.PageSize, page.TotalCount);
     }
 }
 
-public class GetPublicCoachesByIdsQueryHandler(IUnitOfWork unitOfWork, ILocalizationService localization)
+public class GetPublicCoachesByIdsQueryHandler(IUnitOfWork unitOfWork, ILocalizationService localization, IUrlService urlService)
     : IRequestHandler<GetPublicCoachesByIdsQuery, Result<List<PublicCoachDto>>>
 {
     public async Task<Result<List<PublicCoachDto>>> Handle(GetPublicCoachesByIdsQuery request, CancellationToken ct)
@@ -260,11 +261,11 @@ public class GetPublicCoachesByIdsQueryHandler(IUnitOfWork unitOfWork, ILocaliza
             .Where(c => request.Ids.Contains(c.Id) && c.VerificationStatus == CoachVerification.Approved).Select(c => c.Id).ToListAsync(ct);
         // Keep the order the caller asked for.
         var ids = request.Ids.Where(listed.Contains).Distinct().ToList();
-        return await PublicCoachMapper.MapAsync(unitOfWork, localization, request.Language, ids, ct);
+        return await PublicCoachMapper.MapAsync(unitOfWork, localization, urlService, request.Language, ids, ct);
     }
 }
 
-public class GetPublicCoachBySlugQueryHandler(IUnitOfWork unitOfWork, ILocalizationService localization)
+public class GetPublicCoachBySlugQueryHandler(IUnitOfWork unitOfWork, ILocalizationService localization, IUrlService urlService)
     : IRequestHandler<GetPublicCoachBySlugQuery, Result<PublicCoachDto>>
 {
     public async Task<Result<PublicCoachDto>> Handle(GetPublicCoachBySlugQuery request, CancellationToken ct)
@@ -276,7 +277,7 @@ public class GetPublicCoachBySlugQueryHandler(IUnitOfWork unitOfWork, ILocalizat
             return CoachErrors.NotFound;
         }
 
-        return (await PublicCoachMapper.MapAsync(unitOfWork, localization, request.Language, [id.Value], ct))[0];
+        return (await PublicCoachMapper.MapAsync(unitOfWork, localization, urlService, request.Language, [id.Value], ct))[0];
     }
 }
 
@@ -324,7 +325,7 @@ public class GetCoachAvailabilityQueryHandler(IUnitOfWork unitOfWork) : IRequest
 internal static class PublicCoachMapper
 {
     public static async Task<List<PublicCoachDto>> MapAsync(
-        IUnitOfWork unitOfWork, ILocalizationService localization, string language, IReadOnlyList<long> ids, CancellationToken ct)
+        IUnitOfWork unitOfWork, ILocalizationService localization, IUrlService urlService, string language, IReadOnlyList<long> ids, CancellationToken ct)
     {
         if (ids.Count == 0)
         {
@@ -344,6 +345,25 @@ internal static class PublicCoachMapper
         var completed = await db.Set<CoachBooking>().AsNoTracking()
             .Where(b => ids.Contains(b.CoachId) && b.Status == CoachBookingStatuses.Completed)
             .GroupBy(b => b.CoachId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
+        // A coach who registered through the website has a photo on the login, not an avatar in the gallery.
+        var userIds = coaches.Where(c => c.UserId is not null).Select(c => c.UserId!.Value).ToList();
+        var userPhotos = await db.Set<User>().AsNoTracking()
+            .Where(u => userIds.Contains(u.Id) && u.ProfileImageUrl != null)
+            .ToDictionaryAsync(u => u.Id, u => u.ProfileImageUrl!, ct);
+
+        MediaImageDto? AvatarOf(Coach c)
+        {
+            var gallery = avatars.GetValueOrDefault(c.Id)?.FirstOrDefault();
+            if (gallery is not null)
+            {
+                return gallery;
+            }
+
+            return c.UserId is long userId && userPhotos.TryGetValue(userId, out var photo) && urlService.ToAbsoluteUrl(photo) is { } url
+                ? new MediaImageDto($"user-{userId}", url, Pick(c.NameAr, c.NameEn))
+                : null;
+        }
 
         string Pick(string ar, string en) => localization.GetLocalizedName(ar, en, language);
 
@@ -368,7 +388,7 @@ internal static class PublicCoachMapper
                 c.Packages.OrderBy(p => p.Position).Select(p => new PublicPackageDto(p.Id, Pick(p.NameAr, p.NameEn), p.DurationMinutes, p.SessionCount, p.Mode, new MoneyDto(p.PriceAmount), p.CompareAtAmount is long cmp ? new MoneyDto(cmp) : null)).ToList(),
                 // Only verified certifications are shown to visitors.
                 c.Certifications.Where(x => x.IsVerified).Select(x => new PublicCertificationDto(Pick(x.NameAr, x.NameEn), Pick(x.IssuerAr, x.IssuerEn), x.Year)).ToList(),
-                avatars.GetValueOrDefault(c.Id)?.FirstOrDefault(),
+                AvatarOf(c),
                 galleries.GetValueOrDefault(c.Id) ?? [],
                 completed.GetValueOrDefault(c.Id));
         }).ToList();

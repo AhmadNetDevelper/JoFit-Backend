@@ -29,6 +29,13 @@ public static class DatabaseSeedingExtensions
             await seeder.SeedAsync();
 
             await new UserJobTypeSeeder(context).SeedAsync();
+            await new JobStatusSeeder(context).SeedAsync();
+            await new JobTypeSeeder(context).SeedAsync();
+            await new CourseSeeder(context).SeedAsync();
+            await new AcademicDegreeSeeder(context).SeedAsync();
+            await new UniversityMajorSeeder(context).SeedAsync();
+            await new SportSeeder(context).SeedAsync();
+            await new CountryCitySeeder(context).SeedAsync();
             await new LocationSeeder(context).SeedAsync();
             await new CommunitySeeder(context).SeedAsync();
 

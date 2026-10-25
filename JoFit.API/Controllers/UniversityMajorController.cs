@@ -37,7 +37,7 @@ public sealed class UniversityMajorController(ISender sender, ILocalizationServi
     }
 
     [HttpGet("all")]
-    [Authorize(Permissions.UniversityMajors.Read)]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(List<UniversityMajorLookupDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [EndpointSummary("Gets all active university majors (Id and localized Name).")]
