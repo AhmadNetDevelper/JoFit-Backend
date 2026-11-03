@@ -18,7 +18,7 @@ public sealed record CourseRefDto(long Id, string Slug, string Title);
 
 public sealed record AccountEnrolmentDto(
     long Id, string Reference, CourseRefDto Course, string? CourseHref, string Status, string? CohortStartsOn,
-    MoneyDto AmountPaid, int ProgressPercent, DateTimeOffset EnrolledAt);
+    MoneyDto AmountPaid, int ProgressPercent, DateTimeOffset EnrolledAt, string? CancellationReason = null);
 
 public sealed record AdminEnrolmentDto(
     long Id, string Reference, long CourseId, LocalizedText CourseTitle, long CustomerId, string? CustomerName, string Status,
@@ -71,8 +71,10 @@ internal static class EnrolmentMapper
                 e.Id, e.Reference,
                 new CourseRefDto(e.CourseId, course?.Slug ?? string.Empty, course is null ? string.Empty : localization.GetLocalizedName(course.NameAr, course.NameEn, language)),
                 // A link only while the course is still listed.
-                course is { IsPublished: true, Slug: not null } && !course.IsDeleted ? $"/education/{course.Slug}" : null,
-                e.Status, e.CohortStartsOn?.ToString("yyyy-MM-dd"), new MoneyDto(e.AmountPaidAmount), e.ProgressPercent, e.EnrolledAtUtc);
+                course is { IsPublished: true, Slug: not null } && !course.IsDeleted ? $"/education/courses/{course.Slug}" : null,
+                e.Status, e.CohortStartsOn?.ToString("yyyy-MM-dd"), new MoneyDto(e.AmountPaidAmount), e.ProgressPercent, e.EnrolledAtUtc,
+                // The admin's reason, shown to the customer only on a cancelled place.
+                e.Status == EnrolmentStatuses.Cancelled ? e.Note : null);
         }).ToList();
     }
 
@@ -261,7 +263,7 @@ public class SetEnrolmentStatusCommandHandler(IUnitOfWork unitOfWork)
         NotificationWriter.ToCustomer(unitOfWork, enrolment.CustomerId, NotificationKinds.EnrolmentStatus,
             ($"Your enrolment is {word.Item1}", $"تسجيلك {word.Item2}"),
             ($"Enrolment {enrolment.Reference} is now {word.Item1}.", $"أصبح التسجيل {enrolment.Reference} {word.Item2}."),
-            "/account/courses");
+            "/account/enrolments");
         await unitOfWork.SaveChangesAsync(ct);
         return (await EnrolmentMapper.AdminAsync(unitOfWork, [enrolment], ct))[0];
     }
