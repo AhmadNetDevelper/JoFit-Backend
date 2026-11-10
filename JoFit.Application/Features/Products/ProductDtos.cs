@@ -26,7 +26,7 @@ public sealed record AdminProductDto(
     LocalizedText Summary,
     LocalizedText? Description,
     string Status,
-    long BrandId,
+    long? BrandId,
     IReadOnlyList<long> CategoryIds,
     IReadOnlyList<long> SportIds,
     IReadOnlyList<AdminVariantDto> Variants,

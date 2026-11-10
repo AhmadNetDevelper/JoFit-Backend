@@ -46,7 +46,7 @@ public class GetAdminProductsQueryHandler(IUnitOfWork unitOfWork)
         if (request.BrandIds is { Count: > 0 })
         {
             var brandIds = request.BrandIds;
-            query = query.Where(p => brandIds.Contains(p.BrandId));
+            query = query.Where(p => p.BrandId != null && brandIds.Contains(p.BrandId.Value));
         }
 
         if (request.CategoryIds is { Count: > 0 })
@@ -264,7 +264,7 @@ internal static class PublicProductMapper
 
         var db = unitOfWork.GetDbContext();
         var products = await db.Set<Product>().AsNoTracking().Include(p => p.Variants).Where(p => ids.Contains(p.Id)).ToListAsync(ct);
-        var brandIds = products.Select(p => p.BrandId).Distinct().ToList();
+        var brandIds = products.Where(p => p.BrandId.HasValue).Select(p => p.BrandId!.Value).Distinct().ToList();
         var brands = await db.Set<Brand>().AsNoTracking().Where(b => brandIds.Contains(b.Id)).ToDictionaryAsync(b => b.Id, ct);
         var categoryLinks = await db.Set<ProductCategoryLink>().AsNoTracking().Where(l => ids.Contains(l.ProductId)).ToListAsync(ct);
         var sportLinks = await db.Set<ProductSportLink>().AsNoTracking().Where(l => ids.Contains(l.ProductId)).ToListAsync(ct);
@@ -276,7 +276,7 @@ internal static class PublicProductMapper
 
         return ids.Select(id => products.First(p => p.Id == id)).Select(p =>
         {
-            var brand = brands.GetValueOrDefault(p.BrandId);
+            var brand = p.BrandId is { } brandId ? brands.GetValueOrDefault(brandId) : null;
             return PublicProductDto.From(
                 p,
                 localization,

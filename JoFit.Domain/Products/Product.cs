@@ -20,7 +20,7 @@ public sealed record ProductDetails(
     string SummaryAr,
     string? DescriptionEn,
     string? DescriptionAr,
-    long BrandId,
+    long? BrandId,
     string Status);
 
 public class Product : AuditableEntity
@@ -33,7 +33,7 @@ public class Product : AuditableEntity
     public string? DescriptionEn { get; private set; }
     public string? DescriptionAr { get; private set; }
     public string Status { get; private set; } = ProductStatuses.Draft;
-    public long BrandId { get; private set; }
+    public long? BrandId { get; private set; }
     public DateTimeOffset? PublishedAtUtc { get; private set; }
 
     public List<ProductVariant> Variants { get; private set; } = [];
@@ -71,7 +71,6 @@ public class Product : AuditableEntity
         if (titleEn.Length > 150) errors.Add(ProductErrors.Field("title.en", "A title cannot exceed 150 characters."));
         if (titleAr.Length > 150) errors.Add(ProductErrors.Field("title.ar", "A title cannot exceed 150 characters."));
         if (summaryEn.Length == 0) errors.Add(ProductErrors.Field("summary.en", "The English summary is required."));
-        if (d.BrandId <= 0) errors.Add(ProductErrors.Field("brandId", "Choose a brand."));
 
         if (d.Status == ProductStatuses.Published)
         {
@@ -91,7 +90,7 @@ public class Product : AuditableEntity
         SummaryAr = summaryAr;
         DescriptionEn = descriptionEn;
         DescriptionAr = descriptionAr;
-        BrandId = d.BrandId;
+        BrandId = d.BrandId is > 0 ? d.BrandId : null;
         return SetStatus(d.Status);
     }
 
@@ -150,6 +149,17 @@ public class ProductVariant : Entity
         => new() { Sku = sku.Trim(), SkuKey = sku.Trim().ToUpperInvariant(), PriceAmount = priceAmount, StockOnHand = stockOnHand, Position = position };
 
     public bool IsLowStock => StockOnHand <= LowStockThreshold;
+
+    public Result<Updated> SetPrice(long priceAmount)
+    {
+        if (priceAmount <= 0)
+        {
+            return ProductErrors.Field("price", "The price must be more than 0.");
+        }
+
+        PriceAmount = priceAmount;
+        return Result.Updated;
+    }
 
     /// <summary>A signed change; stock may never go below zero.</summary>
     public Result<Updated> Adjust(int delta)

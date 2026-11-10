@@ -29,6 +29,8 @@ public sealed record SetProductStatusCommand(long Id, string Status) : IRequest<
 public sealed record AdjustStockCommand(long ProductId, long VariantId, int Delta, string? Reason, long? UserId)
     : IRequest<Result<AdminProductDto>>;
 
+public sealed record SetVariantPriceCommand(long ProductId, long VariantId, long PriceAmount) : IRequest<Result<AdminProductDto>>;
+
 public sealed record DeleteProductCommand(long Id) : IRequest<Result<Deleted>>;
 
 internal static class ProductSaving
@@ -41,8 +43,8 @@ internal static class ProductSaving
     {
         var errors = new List<Error>();
 
-        if (input.Details.BrandId > 0
-            && !await unitOfWork.GetRepository<Brand>().GetTableNoTracking().AnyAsync(b => b.Id == input.Details.BrandId, ct))
+        if (input.Details.BrandId is > 0 and var brandId
+            && !await unitOfWork.GetRepository<Brand>().GetTableNoTracking().AnyAsync(b => b.Id == brandId, ct))
         {
             errors.Add(ProductErrors.Field("brandId", "That brand does not exist."));
         }
@@ -260,6 +262,36 @@ public class AdjustStockCommandHandler(IUnitOfWork unitOfWork)
         var stockAfter = await db.Set<ProductVariant>().AsNoTracking().Where(v => v.Id == variantId).Select(v => v.StockOnHand).FirstAsync(ct);
         await unitOfWork.GetRepository<StockAdjustment>().AddAsync(
             StockAdjustment.Create(variantId, delta, reason.Length > 300 ? reason[..300] : reason, request.UserId, stockAfter), ct);
+        await unitOfWork.SaveChangesAsync(ct);
+        return await ProductSaving.ToDtoAsync(unitOfWork, product.Id, ct);
+    }
+}
+
+public class SetVariantPriceCommandHandler(IUnitOfWork unitOfWork)
+    : IRequestHandler<SetVariantPriceCommand, Result<AdminProductDto>>
+{
+    public async Task<Result<AdminProductDto>> Handle(SetVariantPriceCommand request, CancellationToken ct)
+    {
+        var product = await unitOfWork.GetRepository<Product>().GetTableAsTracking()
+            .Include(p => p.Variants)
+            .FirstOrDefaultAsync(p => p.Id == request.ProductId, ct);
+        if (product is null)
+        {
+            return ProductErrors.NotFound;
+        }
+
+        var variant = product.Variants.FirstOrDefault(v => v.Id == request.VariantId);
+        if (variant is null)
+        {
+            return ProductErrors.VariantNotFound;
+        }
+
+        var result = variant.SetPrice(request.PriceAmount);
+        if (result.IsError)
+        {
+            return result.Errors;
+        }
+
         await unitOfWork.SaveChangesAsync(ct);
         return await ProductSaving.ToDtoAsync(unitOfWork, product.Id, ct);
     }

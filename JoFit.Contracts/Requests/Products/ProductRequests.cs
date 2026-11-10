@@ -9,7 +9,8 @@ public sealed record ProductDraftRequest
     public LocalizedTextRequest Title { get; init; } = new();
     public LocalizedTextRequest Summary { get; init; } = new();
     public LocalizedTextRequest? Description { get; init; }
-    public long BrandId { get; init; }
+    /// <summary>Null (or absent) means the product has no brand.</summary>
+    public long? BrandId { get; init; }
     public List<long> CategoryIds { get; init; } = [];
     public List<long> SportIds { get; init; } = [];
     public string Status { get; init; } = "draft";
@@ -31,12 +32,17 @@ public sealed record NewProductDraftRequest
     public LocalizedTextRequest Title { get; init; } = new();
     public LocalizedTextRequest Summary { get; init; } = new();
     public LocalizedTextRequest? Description { get; init; }
-    public long BrandId { get; init; }
+    public long? BrandId { get; init; }
     public List<long> CategoryIds { get; init; } = [];
     public List<long> SportIds { get; init; } = [];
     public string Status { get; init; } = "draft";
     public List<MediaImageRequest>? Media { get; init; }
     public NewVariantRequest Variant { get; init; } = new();
+}
+
+public sealed record SetVariantPriceRequest
+{
+    public MoneyRequest Price { get; init; } = new();
 }
 
 public sealed record StockAdjustmentRequest

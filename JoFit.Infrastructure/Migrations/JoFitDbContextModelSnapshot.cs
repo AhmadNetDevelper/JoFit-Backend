@@ -3138,7 +3138,7 @@ namespace JoFit.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("BrandId")
+                    b.Property<long?>("BrandId")
                         .HasColumnType("bigint");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")

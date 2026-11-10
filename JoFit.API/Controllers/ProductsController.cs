@@ -75,6 +75,17 @@ public sealed class AdminProductsController(ISender sender) : ApiController
         return result.Match(dto => Ok(dto), Problem);
     }
 
+    [HttpPut("{id:long}/variants/{variantId:long}/price")]
+    [Authorize(Permissions.Catalogue.Write)]
+    [ProducesResponseType(typeof(AdminProductDto), StatusCodes.Status200OK)]
+    [EndpointSummary("Changes the price of one variant.")]
+    [EndpointName("SetAdminVariantPrice")]
+    public async Task<IActionResult> SetVariantPrice(long id, long variantId, [FromBody] SetVariantPriceRequest r, CancellationToken ct)
+    {
+        var result = await sender.Send(new SetVariantPriceCommand(id, variantId, r.Price.Amount), ct);
+        return result.Match(dto => Ok(dto), Problem);
+    }
+
     [HttpPost("{id:long}/stock-adjustments")]
     [Authorize(Permissions.Catalogue.Write)]
     [ProducesResponseType(typeof(AdminProductDto), StatusCodes.Status201Created)]
@@ -101,7 +112,7 @@ public sealed class AdminProductsController(ISender sender) : ApiController
         JoFit.Contracts.Requests.Common.LocalizedTextRequest title,
         JoFit.Contracts.Requests.Common.LocalizedTextRequest summary,
         JoFit.Contracts.Requests.Common.LocalizedTextRequest? description,
-        long brandId, List<long> categoryIds, List<long> sportIds, string status,
+        long? brandId, List<long> categoryIds, List<long> sportIds, string status,
         List<JoFit.Contracts.Requests.Common.MediaImageRequest>? media)
         => new(
             new ProductDetails(title.En, title.Ar, summary.En, summary.Ar, description?.En, description?.Ar, brandId, status),
