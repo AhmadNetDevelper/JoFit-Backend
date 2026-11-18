@@ -76,6 +76,9 @@ public sealed record JobDraftRequest
     /// <summary>yyyy-MM-dd. Send it omitted, never null, for "no closing date".</summary>
     public string? ClosesOn { get; init; }
 
+    /// <summary>Free text, up to 120 characters, e.g. "9:00 – 17:00، الأحد – الخميس". Optional.</summary>
+    public string? WorkingHours { get; init; }
+
     /// <summary>On create: submit for review straight away.</summary>
     public bool Submit { get; init; }
 }
@@ -155,7 +158,7 @@ internal static class CareersMapping
         var salary = r.Salary is null ? null : new SalaryInput(r.Salary.Min?.Amount, r.Salary.Max?.Amount, r.Salary.Period);
         return new JobInput(
             new JobDetailsInput(r.Title, r.CategoryId, r.EmploymentType, r.WorkMode, r.ExperienceLevel, salary, r.ShowSalary, r.Description,
-                r.Requirements, r.Benefits, r.Languages, r.Positions, Date(r.ClosesOn)),
+                r.Requirements, r.Benefits, r.Languages, r.Positions, Date(r.ClosesOn), r.WorkingHours),
             r.SportIds, r.CityId);
     }
 
@@ -482,7 +485,7 @@ public sealed class EmployerAreaController(ISender sender) : ApiController
 
 [Route("api/v{version:apiVersion}/me")]
 [ApiVersion("1.0")]
-[Authorize(Roles = "customer")]
+[Authorize(Roles = "customer,coach")]
 public sealed class MeCareersController(ISender sender) : ApiController
 {
     [HttpPost("cv")]

@@ -39,6 +39,7 @@ public sealed record JobPostingDto(
     IReadOnlyList<JobSportRefDto> Sports,
     EmployerRefDto Employer,
     string? ClosesOn,
+    string? WorkingHours,
     DateTimeOffset? PostedAt,
     bool Featured,
     bool AcceptingApplications);
@@ -72,7 +73,7 @@ public sealed record EmployerAccountProfileDto(
 public sealed record EmployerJobDto(
     long Id, string Reference, string Slug, string Title, long CategoryId, IReadOnlyList<long> SportIds, string CityId, string EmploymentType,
     string WorkMode, string ExperienceLevel, SalaryDto? Salary, bool ShowSalary, string Description, IReadOnlyList<string> Requirements,
-    IReadOnlyList<string> Benefits, IReadOnlyList<string> Languages, int Positions, string? ClosesOn, string Status, string? ModerationNote,
+    IReadOnlyList<string> Benefits, IReadOnlyList<string> Languages, int Positions, string? ClosesOn, string? WorkingHours, string Status, string? ModerationNote,
     bool Featured, bool IsPublic, int ApplicationCount, int NewApplicationCount, DateTimeOffset? PostedAt, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 public sealed record CvFileDto(long Id, string FileName, string MimeType, long Bytes, DateTimeOffset UploadedAt);
@@ -94,7 +95,7 @@ public sealed record EmployerApplicationDto(
 
 /// <summary>Staff see everything except the employer's private note; the CV is metadata only.</summary>
 public sealed record AdminJobApplicationDto(
-    long Id, string Reference, ApplicationJobRef Job, long JobEmployerId, long CustomerId, CandidateDto Candidate, string Status, string? StatusNote,
+    long Id, string Reference, ApplicationJobRef Job, long JobEmployerId, long? CustomerId, long? CoachId, CandidateDto Candidate, string Status, string? StatusNote,
     string? WithdrawReason, IReadOnlyList<HistoryDto> History, CvFileDto? Cv, string CoverLetter, int YearsExperience, string? Certifications,
     string? AvailableFrom, MoneyDto? ExpectedSalary, DateTimeOffset SubmittedAt);
 
@@ -109,7 +110,7 @@ public sealed record AdminJobDto(
     long Id, string Reference, string Slug, string Title, long EmployerId, string EmployerName, string EmployerVerificationStatus, long CategoryId,
     LocalizedText? CategoryName, IReadOnlyList<long> SportIds, string CityId, LocalizedText? City, string EmploymentType, string WorkMode, string ExperienceLevel,
     SalaryDto? Salary, bool ShowSalary, string Description, IReadOnlyList<string> Requirements, IReadOnlyList<string> Benefits, IReadOnlyList<string> Languages,
-    int Positions, string? ClosesOn, string Status, string? ModerationNote, bool Featured, bool IsPublic, int ApplicationCount, DateTimeOffset? PostedAt,
+    int Positions, string? ClosesOn, string? WorkingHours, string Status, string? ModerationNote, bool Featured, bool IsPublic, int ApplicationCount, DateTimeOffset? PostedAt,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 public sealed record CareersPendingCountDto(int Employers, int Jobs);

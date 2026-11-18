@@ -7,7 +7,9 @@ namespace JoFit.Domain.Careers;
 /// <summary>A candidate's CV. It is private: served only through the owner, the employer applied to, and staff.</summary>
 public class CvFile : AuditableEntity
 {
-    public long CustomerId { get; private set; }
+    /// <summary>The owner is a customer or a coach: exactly one of the two is set.</summary>
+    public long? CustomerId { get; private set; }
+    public long? CoachId { get; private set; }
     public string FileName { get; private set; } = string.Empty;
     public string MimeType { get; private set; } = string.Empty;
     public long Bytes { get; private set; }
@@ -17,8 +19,8 @@ public class CvFile : AuditableEntity
     {
     }
 
-    public static CvFile Create(long customerId, string fileName, string mimeType, long bytes, string storageKey)
-        => new() { CustomerId = customerId, FileName = fileName.Length > 120 ? fileName[..120] : fileName, MimeType = mimeType, Bytes = bytes, StorageKey = storageKey };
+    public static CvFile Create(long? customerId, long? coachId, string fileName, string mimeType, long bytes, string storageKey)
+        => new() { CustomerId = customerId, CoachId = coachId, FileName = fileName.Length > 120 ? fileName[..120] : fileName, MimeType = mimeType, Bytes = bytes, StorageKey = storageKey };
 }
 
 public sealed record ApplicationDraft(
@@ -35,7 +37,10 @@ public sealed record HistoryEntry(string Status, DateTimeOffset At, string By);
 public class JobApplication : AuditableEntity
 {
     public long JobId { get; private set; }
-    public long CustomerId { get; private set; }
+
+    /// <summary>The applicant is a customer or a coach: exactly one of the two is set.</summary>
+    public long? CustomerId { get; private set; }
+    public long? CoachId { get; private set; }
 
     // The candidate as they were when they applied.
     public string CandidateName { get; private set; } = string.Empty;
@@ -74,7 +79,7 @@ public class JobApplication : AuditableEntity
     public bool IsNew => Status == ApplicationStatuses.Submitted && SeenByEmployerAtUtc is null;
 
     public static Result<JobApplication> Submit(
-        long customerId, string candidateName, string candidateEmail, string? candidatePhone, ApplicationDraft d, DateOnly today)
+        long? customerId, long? coachId, string candidateName, string candidateEmail, string? candidatePhone, ApplicationDraft d, DateOnly today)
     {
         var errors = new List<Error>();
         var cover = (d.CoverLetter ?? string.Empty).Trim();
@@ -94,6 +99,7 @@ public class JobApplication : AuditableEntity
         {
             JobId = d.JobId,
             CustomerId = customerId,
+            CoachId = coachId,
             CandidateName = candidateName,
             CandidateEmail = candidateEmail,
             CandidatePhone = candidatePhone,

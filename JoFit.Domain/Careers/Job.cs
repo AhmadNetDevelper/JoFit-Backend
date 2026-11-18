@@ -21,7 +21,8 @@ public sealed record JobDetails(
     IReadOnlyList<string> Benefits,
     IReadOnlyList<string> Languages,
     int Positions,
-    DateOnly? ClosesOn);
+    DateOnly? ClosesOn,
+    string? WorkingHours = null);
 
 public class Job : AuditableEntity
 {
@@ -43,6 +44,7 @@ public class Job : AuditableEntity
     public string Languages { get; private set; } = "ar";
     public int Positions { get; private set; } = 1;
     public DateOnly? ClosesOn { get; private set; }
+    public string? WorkingHours { get; private set; }
     public string Status { get; private set; } = JobStates.Draft;
     public string? ModerationNote { get; private set; }
     public bool Featured { get; private set; }
@@ -93,6 +95,8 @@ public class Job : AuditableEntity
         if (languages.Count == 0 || languages.Any(l => !CareersRules.JobLanguages.Contains(l))) errors.Add(CareersErrors.Field("languages", "Choose at least one language (ar or en)."));
         if (d.Positions is < 1 or > 50) errors.Add(CareersErrors.Field("positions", "Positions must be from 1 to 50."));
         if (d.ClosesOn is DateOnly closes && closes < today) errors.Add(CareersErrors.Field("closesOn", "The closing date cannot be in the past."));
+        var workingHours = Employer.Collapse(d.WorkingHours ?? string.Empty);
+        if (workingHours.Length > 120) errors.Add(CareersErrors.Field("workingHours", "Working hours can be at most 120 characters."));
 
         // A salary with neither bound is dropped; with a bound it must be sane.
         var salary = d.Salary is { Min: null, Max: null } ? null : d.Salary;
@@ -126,6 +130,7 @@ public class Job : AuditableEntity
         Languages = string.Join(',', languages);
         Positions = d.Positions;
         ClosesOn = d.ClosesOn;
+        WorkingHours = workingHours.Length == 0 ? null : workingHours;
         return Result.Updated;
     }
 

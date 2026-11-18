@@ -129,7 +129,7 @@ internal static class PublicBoard
                 r.SportSlugs.Select(s => sports.GetValueOrDefault(s)).Where(s => s is not null)
                     .Select(s => new JobSportRefDto(s!.Id, s.Slug!, localization.GetLocalizedName(s.NameAr, s.NameEn, language))).ToList(),
                 new EmployerRefDto(r.Employer.Id, r.Employer.Slug, r.Employer.Name, r.Employer.Kind, CareersSupport.Logo(r.Employer)),
-                j.ClosesOn?.ToString("yyyy-MM-dd"), j.PostedAtUtc, j.Featured,
+                j.ClosesOn?.ToString("yyyy-MM-dd"), j.WorkingHours, j.PostedAtUtc, j.Featured,
                 j.IsPublic(r.Employer.IsVerified, today) && r.Hires < j.Positions);
         }).ToList();
     }

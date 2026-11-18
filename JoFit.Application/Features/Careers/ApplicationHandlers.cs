@@ -5,6 +5,7 @@ using JoFit.Application.Common.Services;
 using JoFit.Application.Features.Notifications;
 using JoFit.Domain.Careers;
 using JoFit.Domain.Common.Results;
+using JoFit.Domain.Coaches;
 using JoFit.Domain.Customers;
 using JoFit.Domain.Identity.Users;
 using JoFit.Domain.Notifications;
@@ -42,8 +43,29 @@ public sealed record GetAdminApplicationsQuery(
 
 public sealed record GetAdminApplicationQuery(long Id) : IRequest<Result<AdminJobApplicationDto>>;
 
+internal sealed record Applicant(long? CustomerId, long? CoachId, string Name, string Email, string? Phone);
+
 internal static class ApplicationSupport
 {
+    /// <summary>The signed-in user as a candidate: their customer record, or else their coach profile. Null when they have neither.</summary>
+    public static async Task<Applicant?> ApplicantAsync(IUnitOfWork uow, long userId, CancellationToken ct)
+    {
+        var db = uow.GetDbContext();
+        var user = await db.Set<User>().AsNoTracking().Where(u => u.Id == userId).Select(u => new { u.Email, u.PhoneNumber }).FirstOrDefaultAsync(ct);
+        var customer = await db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId, ct);
+        if (customer is not null)
+        {
+            return new Applicant(customer.Id, null, customer.Name, user?.Email ?? string.Empty, customer.Phone);
+        }
+
+        var coach = await db.Set<Coach>().AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId, ct);
+        return coach is null ? null : new Applicant(null, coach.Id, coach.NameEn, string.IsNullOrWhiteSpace(coach.Email) ? user?.Email ?? string.Empty : coach.Email, user?.PhoneNumber);
+    }
+
+    public static IQueryable<JobApplication> OwnedBy(this IQueryable<JobApplication> q, Applicant? who)
+        => who is null ? q.Where(_ => false)
+            : who.CustomerId is long cid ? q.Where(a => a.CustomerId == cid) : q.Where(a => a.CoachId == who.CoachId);
+
     public const string Pdf = "application/pdf";
     public const string Doc = "application/msword";
     public const string Docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -107,7 +129,7 @@ internal static class ApplicationSupport
         var cvs = await CvsAsync(uow, apps.Select(a => a.CvFileId), ct);
         // Staff never see the employer's private note, and the CV is metadata only.
         return apps.Select(a => new AdminJobApplicationDto(
-            a.Id, a.Reference, JobRef(jobs[a.JobId]), jobs[a.JobId].Job.EmployerId, a.CustomerId, new CandidateDto(a.CandidateName, a.CandidateEmail, a.CandidatePhone),
+            a.Id, a.Reference, JobRef(jobs[a.JobId]), jobs[a.JobId].Job.EmployerId, a.CustomerId, a.CoachId, new CandidateDto(a.CandidateName, a.CandidateEmail, a.CandidatePhone),
             a.Status, a.StatusNote, a.WithdrawReason, History(a), Cv(cvs.GetValueOrDefault(a.CvFileId)), a.CoverLetter, a.YearsExperience, a.Certifications,
             a.AvailableFrom?.ToString("yyyy-MM-dd"), a.ExpectedSalaryAmount is long s ? new MoneyDto(s) : null, a.SubmittedAtUtc)).ToList();
     }
@@ -131,10 +153,10 @@ public class UploadCvCommandHandler(IUnitOfWork unitOfWork, IPrivateFileStorage 
 
     public async Task<Result<CvFileDto>> Handle(UploadCvCommand request, CancellationToken ct)
     {
-        var customerId = await unitOfWork.GetDbContext().Set<Customer>().AsNoTracking().Where(c => c.UserId == request.UserId).Select(c => (long?)c.Id).FirstOrDefaultAsync(ct);
-        if (customerId is null)
+        var applicant = await ApplicationSupport.ApplicantAsync(unitOfWork, request.UserId, ct);
+        if (applicant is null)
         {
-            return Error.Forbidden("Careers.NotCustomer", "This area is for customers.");
+            return Error.Forbidden("Careers.NotCandidate", "This area is for customers and coaches.");
         }
 
         if (request.Bytes is null || request.Bytes.Length == 0)
@@ -156,7 +178,7 @@ public class UploadCvCommandHandler(IUnitOfWork unitOfWork, IPrivateFileStorage 
         var key = $"cv-{Guid.NewGuid():N}";
         await storage.SaveAsync(key, request.Bytes, ct);
         var name = string.IsNullOrWhiteSpace(request.FileName) ? "cv" : Path.GetFileName(request.FileName.Trim());
-        var cv = CvFile.Create(customerId.Value, name, mime, request.Bytes.LongLength, key);
+        var cv = CvFile.Create(applicant.CustomerId, applicant.CoachId, name, mime, request.Bytes.LongLength, key);
         await unitOfWork.GetRepository<CvFile>().AddAsync(cv, ct);
         await unitOfWork.SaveChangesAsync(ct);
         return ApplicationSupport.Cv(cv)!;
@@ -168,10 +190,10 @@ public class SubmitApplicationCommandHandler(IUnitOfWork unitOfWork) : IRequestH
     public async Task<Result<CandidateApplicationDto>> Handle(SubmitApplicationCommand request, CancellationToken ct)
     {
         var db = unitOfWork.GetDbContext();
-        var customer = await db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.UserId == request.UserId, ct);
-        if (customer is null)
+        var applicant = await ApplicationSupport.ApplicantAsync(unitOfWork, request.UserId, ct);
+        if (applicant is null)
         {
-            return Error.Forbidden("Careers.NotCustomer", "This area is for customers.");
+            return Error.Forbidden("Careers.NotCandidate", "This area is for customers and coaches.");
         }
 
         var input = request.Input;
@@ -183,10 +205,11 @@ public class SubmitApplicationCommandHandler(IUnitOfWork unitOfWork) : IRequestH
         }
 
         // The CV must be the caller's own.
-        var cv = await db.Set<CvFile>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == input.CvId && c.CustomerId == customer.Id, ct);
+        var cvCustomerId = applicant.CustomerId;
+        var cvCoachId = applicant.CoachId;
+        var cv = await db.Set<CvFile>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == input.CvId && (cvCustomerId != null ? c.CustomerId == cvCustomerId : c.CoachId == cvCoachId), ct);
         var draft = new ApplicationDraft(job.Id, input.CvId, input.CoverLetter ?? string.Empty, input.YearsExperience, input.Certifications, input.AvailableFrom, input.ExpectedSalaryAmount);
-        var email = await db.Set<User>().AsNoTracking().Where(u => u.Id == customer.UserId).Select(u => u.Email).FirstAsync(ct);
-        var submitted = JobApplication.Submit(customer.Id, customer.Name, email!, customer.Phone, draft, CareersSupport.Today);
+        var submitted = JobApplication.Submit(applicant.CustomerId, applicant.CoachId, applicant.Name, applicant.Email, applicant.Phone, draft, CareersSupport.Today);
 
         var errors = new List<Error>();
         if (submitted.IsError) errors.AddRange(submitted.Errors);
@@ -205,7 +228,7 @@ public class SubmitApplicationCommandHandler(IUnitOfWork unitOfWork) : IRequestH
 
         // A second application is refused unless the earlier one was withdrawn; an employer's decision stands.
         var live = ApplicationStatuses.NotWithdrawn;
-        if (await db.Set<JobApplication>().AnyAsync(a => a.JobId == job.Id && a.CustomerId == customer.Id && live.Contains(a.Status), ct))
+        if (await db.Set<JobApplication>().OwnedBy(applicant).AnyAsync(a => a.JobId == job.Id && live.Contains(a.Status), ct))
         {
             return CareersErrors.AlreadyApplied;
         }
@@ -223,7 +246,7 @@ public class SubmitApplicationCommandHandler(IUnitOfWork unitOfWork) : IRequestH
 
         NotificationWriter.ToEmployer(unitOfWork, employer.Id, NotificationKinds.JobApplication,
             ("New application", "طلب توظيف جديد"),
-            ($"{customer.Name} applied for \"{job.Title}\" ({application.Reference}).", $"{customer.Name} قدّم على وظيفة \"{job.Title}\" ({application.Reference})."),
+            ($"{applicant.Name} applied for \"{job.Title}\" ({application.Reference}).", $"{applicant.Name} قدّم على وظيفة \"{job.Title}\" ({application.Reference})."),
             $"/employer/applications/{application.Id}");
         await unitOfWork.SaveChangesAsync(ct);
         return (await ApplicationSupport.CandidateAsync(unitOfWork, [application], ct))[0];
@@ -235,8 +258,8 @@ public class GetMyApplicationsQueryHandler(IUnitOfWork unitOfWork) : IRequestHan
     public async Task<Result<List<CandidateApplicationDto>>> Handle(GetMyApplicationsQuery request, CancellationToken ct)
     {
         var db = unitOfWork.GetDbContext();
-        var customerId = await db.Set<Customer>().AsNoTracking().Where(c => c.UserId == request.UserId).Select(c => (long?)c.Id).FirstOrDefaultAsync(ct);
-        var rows = await db.Set<JobApplication>().AsNoTracking().Where(a => a.CustomerId == customerId).OrderByDescending(a => a.SubmittedAtUtc).ToListAsync(ct);
+        var applicant = await ApplicationSupport.ApplicantAsync(unitOfWork, request.UserId, ct);
+        var rows = await db.Set<JobApplication>().AsNoTracking().OwnedBy(applicant).OrderByDescending(a => a.SubmittedAtUtc).ToListAsync(ct);
         return await ApplicationSupport.CandidateAsync(unitOfWork, rows, ct);
     }
 }
@@ -246,12 +269,12 @@ public class GetMyApplicationByJobQueryHandler(IUnitOfWork unitOfWork) : IReques
     public async Task<Result<CandidateApplicationDto>> Handle(GetMyApplicationByJobQuery request, CancellationToken ct)
     {
         var db = unitOfWork.GetDbContext();
-        var customerId = await db.Set<Customer>().AsNoTracking().Where(c => c.UserId == request.UserId).Select(c => (long?)c.Id).FirstOrDefaultAsync(ct);
+        var applicant = await ApplicationSupport.ApplicantAsync(unitOfWork, request.UserId, ct);
 
         // The latest application that was not withdrawn; not found when there is none.
         var live = ApplicationStatuses.NotWithdrawn;
-        var row = await db.Set<JobApplication>().AsNoTracking()
-            .Where(a => a.CustomerId == customerId && a.JobId == request.JobId && live.Contains(a.Status)).OrderByDescending(a => a.SubmittedAtUtc).FirstOrDefaultAsync(ct);
+        var row = await db.Set<JobApplication>().AsNoTracking().OwnedBy(applicant)
+            .Where(a => a.JobId == request.JobId && live.Contains(a.Status)).OrderByDescending(a => a.SubmittedAtUtc).FirstOrDefaultAsync(ct);
         return row is null ? CareersErrors.ApplicationNotFound : (await ApplicationSupport.CandidateAsync(unitOfWork, [row], ct))[0];
     }
 }
@@ -261,8 +284,8 @@ public class WithdrawMyApplicationCommandHandler(IUnitOfWork unitOfWork) : IRequ
     public async Task<Result<CandidateApplicationDto>> Handle(WithdrawMyApplicationCommand request, CancellationToken ct)
     {
         var db = unitOfWork.GetDbContext();
-        var customerId = await db.Set<Customer>().AsNoTracking().Where(c => c.UserId == request.UserId).Select(c => (long?)c.Id).FirstOrDefaultAsync(ct);
-        var application = await unitOfWork.GetRepository<JobApplication>().GetTableAsTracking().FirstOrDefaultAsync(a => a.Id == request.ApplicationId && a.CustomerId == customerId, ct);
+        var applicant = await ApplicationSupport.ApplicantAsync(unitOfWork, request.UserId, ct);
+        var application = await unitOfWork.GetRepository<JobApplication>().GetTableAsTracking().OwnedBy(applicant).FirstOrDefaultAsync(a => a.Id == request.ApplicationId, ct);
         if (application is null)
         {
             return CareersErrors.ApplicationNotFound;
@@ -299,7 +322,8 @@ public class DownloadCvQueryHandler(IUnitOfWork unitOfWork, IPrivateFileStorage 
         // A CV goes to exactly one audience: the candidate, the employer applied to, or staff. Anyone else gets not-found.
         var allowed = request.Audience switch
         {
-            "candidate" => await db.Set<Customer>().AnyAsync(c => c.UserId == request.UserId && c.Id == application.CustomerId, ct),
+            "candidate" => await db.Set<Customer>().AnyAsync(c => c.UserId == request.UserId && c.Id == application.CustomerId, ct)
+                || await db.Set<Coach>().AnyAsync(c => c.UserId == request.UserId && c.Id == application.CoachId, ct),
             "employer" => await db.Set<Employer>().AnyAsync(e => e.UserId == request.UserId
                 && db.Set<Job>().Any(j => j.Id == application.JobId && j.EmployerId == e.Id), ct),
             "staff" => true,
@@ -401,7 +425,14 @@ public class SetEmployerApplicationStatusCommandHandler(IUnitOfWork unitOfWork) 
         }
 
         var copy = ApplicationSupport.MoveCopy(request.Status, job.Title, employer.Name);
-        NotificationWriter.ToCustomer(unitOfWork, application.CustomerId, NotificationKinds.ApplicationStatus, copy.Title, copy.Body, "/account/applications");
+        if (application.CustomerId is long customerId)
+        {
+            NotificationWriter.ToCustomer(unitOfWork, customerId, NotificationKinds.ApplicationStatus, copy.Title, copy.Body, "/account/applications");
+        }
+        else if (application.CoachId is long coachId)
+        {
+            NotificationWriter.ToCoach(unitOfWork, coachId, NotificationKinds.ApplicationStatus, copy.Title, copy.Body, "/coach/applications");
+        }
         await unitOfWork.SaveChangesAsync(ct);
         return (await ApplicationSupport.EmployerAsync(unitOfWork, [application], ct))[0];
     }
@@ -456,7 +487,7 @@ public class GetAdminApplicationsQueryHandler(IUnitOfWork unitOfWork) : IRequest
             query = query.Where(a => db.Set<Job>().Any(j => j.Id == a.JobId && employers.Contains(j.EmployerId)));
         }
 
-        if (request.CustomerId is long customerId) query = query.Where(a => a.CustomerId == customerId);
+        if (request.CustomerId is long filterCustomerId) query = query.Where(a => a.CustomerId == filterCustomerId);
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {

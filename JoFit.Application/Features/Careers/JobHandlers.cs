@@ -21,7 +21,7 @@ public sealed record JobInput(JobDetailsInput Details, IReadOnlyList<long> Sport
 /// <summary>The form fields; the city id is resolved separately.</summary>
 public sealed record JobDetailsInput(
     string Title, long CategoryId, string EmploymentType, string WorkMode, string ExperienceLevel, SalaryInput? Salary, bool ShowSalary,
-    string Description, IReadOnlyList<string> Requirements, IReadOnlyList<string> Benefits, IReadOnlyList<string> Languages, int Positions, DateOnly? ClosesOn);
+    string Description, IReadOnlyList<string> Requirements, IReadOnlyList<string> Benefits, IReadOnlyList<string> Languages, int Positions, DateOnly? ClosesOn, string? WorkingHours = null);
 
 public sealed record CreateEmployerJobCommand(long UserId, JobInput Input, bool Submit) : IRequest<Result<EmployerJobDto>>;
 
@@ -55,7 +55,7 @@ internal static class JobSupport
         var d = input.Details;
         return new JobDetails(
             d.Title, d.CategoryId, locationId, d.EmploymentType, d.WorkMode, d.ExperienceLevel, d.Salary, d.ShowSalary,
-            d.Description, d.Requirements, d.Benefits, d.Languages, d.Positions, d.ClosesOn);
+            d.Description, d.Requirements, d.Benefits, d.Languages, d.Positions, d.ClosesOn, d.WorkingHours);
     }
 
     /// <summary>The slug is the latin title plus the employer's slug (90 characters at most), with -2, -3 on a clash.</summary>
@@ -89,7 +89,7 @@ internal static class JobSupport
         return jobs.Select(j => new EmployerJobDto(
             j.Id, j.Reference, j.Slug, j.Title, j.CategoryId, sports.Where(l => l.JobId == j.Id).Select(l => l.SportId).OrderBy(x => x).ToList(),
             locations.GetValueOrDefault(j.LocationId)?.Slug ?? string.Empty, j.EmploymentType, j.WorkMode, j.ExperienceLevel, CareersSupport.Salary(j), j.ShowSalary,
-            j.Description, j.Requirements, j.Benefits, j.LanguageList, j.Positions, j.ClosesOn?.ToString("yyyy-MM-dd"), j.Status, j.ModerationNote, j.Featured,
+            j.Description, j.Requirements, j.Benefits, j.LanguageList, j.Positions, j.ClosesOn?.ToString("yyyy-MM-dd"), j.WorkingHours, j.Status, j.ModerationNote, j.Featured,
             j.IsPublic(employer.IsVerified, today), apps.Count(a => a.JobId == j.Id),
             apps.Count(a => a.JobId == j.Id && a.Status == ApplicationStatuses.Submitted && a.SeenByEmployerAtUtc == null),
             j.PostedAtUtc, j.CreatedAtUtc, j.LastModifiedUtc ?? j.CreatedAtUtc)).ToList();

@@ -105,7 +105,7 @@ internal static class AdminCareersSupport
                 category is null ? null : new LocalizedText(category.NameEn, category.NameAr), sports.Where(l => l.JobId == j.Id).Select(l => l.SportId).OrderBy(x => x).ToList(),
                 location?.Slug ?? string.Empty, location is null ? null : new LocalizedText(location.NameEn, location.NameAr), j.EmploymentType, j.WorkMode, j.ExperienceLevel,
                 CareersSupport.Salary(j), j.ShowSalary, j.Description, j.Requirements, j.Benefits, j.LanguageList, j.Positions, j.ClosesOn?.ToString("yyyy-MM-dd"),
-                j.Status, j.ModerationNote, j.Featured, j.IsPublic(employer.IsVerified, today), applications.GetValueOrDefault(j.Id), j.PostedAtUtc,
+                j.WorkingHours, j.Status, j.ModerationNote, j.Featured, j.IsPublic(employer.IsVerified, today), applications.GetValueOrDefault(j.Id), j.PostedAtUtc,
                 j.CreatedAtUtc, j.LastModifiedUtc ?? j.CreatedAtUtc);
         }).ToList();
     }

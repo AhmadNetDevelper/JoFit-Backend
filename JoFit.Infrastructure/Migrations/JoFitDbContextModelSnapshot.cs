@@ -475,13 +475,16 @@ namespace JoFit.Infrastructure.Migrations
                     b.Property<long>("Bytes")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("CoachId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("CustomerId")
+                    b.Property<long?>("CustomerId")
                         .HasColumnType("bigint");
 
                     b.Property<long?>("DeletedBy")
@@ -515,6 +518,8 @@ namespace JoFit.Infrastructure.Migrations
                         .HasColumnType("character varying(120)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CoachId");
 
                     b.HasIndex("CustomerId");
 
@@ -746,6 +751,10 @@ namespace JoFit.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("WorkingHours")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
@@ -790,6 +799,9 @@ namespace JoFit.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<long?>("CoachId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("CoverLetter")
                         .IsRequired()
                         .HasMaxLength(3000)
@@ -801,7 +813,7 @@ namespace JoFit.Infrastructure.Migrations
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("CustomerId")
+                    b.Property<long?>("CustomerId")
                         .HasColumnType("bigint");
 
                     b.Property<long>("CvFileId")
@@ -860,9 +872,15 @@ namespace JoFit.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CoachId");
+
                     b.HasIndex("CustomerId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("JobId", "CoachId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" <> 'withdrawn' AND \"IsDeleted\" = false");
 
                     b.HasIndex("JobId", "CustomerId")
                         .IsUnique()

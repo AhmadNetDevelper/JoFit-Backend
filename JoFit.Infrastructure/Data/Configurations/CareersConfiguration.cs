@@ -49,6 +49,7 @@ public class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.Property(x => x.RequirementsJson).IsRequired().HasColumnType("text");
         builder.Property(x => x.BenefitsJson).IsRequired().HasColumnType("text");
         builder.Property(x => x.Languages).IsRequired().HasMaxLength(10);
+        builder.Property(x => x.WorkingHours).HasMaxLength(120);
         builder.Property(x => x.Status).IsRequired().HasMaxLength(20);
         builder.Property(x => x.ModerationNote).HasMaxLength(1000);
         builder.Ignore(x => x.Reference);
@@ -85,6 +86,7 @@ public class CvFileConfiguration : IEntityTypeConfiguration<CvFile>
         builder.Property(x => x.MimeType).IsRequired().HasMaxLength(100);
         builder.Property(x => x.StorageKey).IsRequired().HasMaxLength(120);
         builder.HasIndex(x => x.CustomerId);
+        builder.HasIndex(x => x.CoachId);
         builder.ToTable("CvFiles");
     }
 }
@@ -111,7 +113,9 @@ public class JobApplicationConfiguration : IEntityTypeConfiguration<JobApplicati
 
         // One live (not withdrawn) application per candidate and job.
         builder.HasIndex(x => new { x.JobId, x.CustomerId }).IsUnique().HasFilter("\"Status\" <> 'withdrawn' AND \"IsDeleted\" = false");
+        builder.HasIndex(x => new { x.JobId, x.CoachId }).IsUnique().HasFilter("\"Status\" <> 'withdrawn' AND \"IsDeleted\" = false");
         builder.HasIndex(x => x.CustomerId);
+        builder.HasIndex(x => x.CoachId);
         builder.HasIndex(x => x.Status);
         builder.ToTable("JobApplications");
     }
