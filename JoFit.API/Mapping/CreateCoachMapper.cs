@@ -1,3 +1,4 @@
+using JoFit.Application.Features.CoachPortal;
 using JoFit.Application.Features.Coaches;
 using JoFit.Application.Features.Users.Commands.CreateCoach;
 using JoFit.Application.Features.Users.Commands.CreateUser;
@@ -64,6 +65,26 @@ public static class CreateCoachMapper
             ToCoachInput(request.Profile, user.Email),
             ToEducations(request.Educations),
             ToCertificates(request.Certificates),
+            ToExperiences(request.Experiences),
+            ToSkills(request.Skills));
+    }
+
+    public static UpdateMyCoachProfileCommand ToCommand(this UpdateMyCoachProfileRequest request, long userId)
+    {
+        var user = request.User;
+        var page = request.Profile;
+
+        return new UpdateMyCoachProfileCommand(
+            userId,
+            new MyCoachUserInput(
+                user.PhoneNumber, user.FullName, user.BirthOfDate, (EnumGender)user.GenderId,
+                user.CountryId, user.CityId, user.JobStatusId, user.ProfileImage),
+            new MyCoachPageInput(
+                page.Name.En, page.Name.Ar, page.Headline.En, page.Headline.Ar, page.Bio?.En, page.Bio?.Ar,
+                page.LocationId, page.SportIds, page.Languages),
+            ToEducations(request.Educations),
+            [.. request.Certificates.Select(c => new CoachCertificateInput(
+                c.CertificateName, c.OrganizationName, c.IssuedDate, c.ExpiryDate, c.CredentialId, c.CredentialUrl, c.CertificateFile, c.Id))],
             ToExperiences(request.Experiences),
             ToSkills(request.Skills));
     }

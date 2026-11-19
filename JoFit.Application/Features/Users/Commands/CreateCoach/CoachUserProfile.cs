@@ -73,9 +73,32 @@ internal static class CoachUserProfile
             skills.Add(result.Value);
         }
 
+        // A certificate sent with an Id is an existing one that is kept (see RemoveUserDataAsync in the update handler):
+        // its details are updated and its file stays unless a new file comes with it.
         var certificates = new List<(UserCertificate Certificate, IFormFile? File)>();
+        var added = new List<UserCertificate>();
         foreach (var c in request.Certificates)
         {
+            if (c.Id is long keptId)
+            {
+                var existing = await unitOfWork.GetRepository<UserCertificate>().GetTableAsTracking()
+                    .FirstOrDefaultAsync(x => x.Id == keptId && x.UserId == userId, ct);
+                if (existing is null)
+                {
+                    return [Error.NotFound("UserCertificate.NotFound", $"Certificate not found: {keptId}")];
+                }
+
+                var updated = existing.Update(
+                    c.CertificateName, c.OrganizationName, c.IssuedDate, c.ExpiryDate, c.CredentialId, c.CredentialUrl, existing.CertificateUrl);
+                if (updated.IsError)
+                {
+                    return updated.Errors;
+                }
+
+                certificates.Add((existing, c.CertificateFile));
+                continue;
+            }
+
             var result = UserCertificate.Create(
                 userId, c.CertificateName, c.OrganizationName, c.IssuedDate, c.ExpiryDate, c.CredentialId, c.CredentialUrl);
             if (result.IsError)
@@ -84,12 +107,13 @@ internal static class CoachUserProfile
             }
 
             certificates.Add((result.Value, c.CertificateFile));
+            added.Add(result.Value);
         }
 
         await unitOfWork.GetRepository<UserEducation>().AddRangeAsync(educations, ct);
         await unitOfWork.GetRepository<UserExperience>().AddRangeAsync(experiences, ct);
         await unitOfWork.GetRepository<UserSkill>().AddRangeAsync(skills, ct);
-        await unitOfWork.GetRepository<UserCertificate>().AddRangeAsync([.. certificates.Select(x => x.Certificate)], ct);
+        await unitOfWork.GetRepository<UserCertificate>().AddRangeAsync(added, ct);
 
         // Certificates need their Id before the files can be attached to them.
         await unitOfWork.SaveChangesAsync(ct);

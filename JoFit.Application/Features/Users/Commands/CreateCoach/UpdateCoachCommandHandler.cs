@@ -64,7 +64,7 @@ public class UpdateCoachCommandHandler(
         try
         {
             await CoachSaving.ReplaceLinksAsync(unitOfWork, coach.Id, request.Profile, ct);
-            await RemoveUserDataAsync(userId, oldFiles, ct);
+            await RemoveUserDataAsync(userId, request.Certificates, oldFiles, ct);
 
             var profileErrors = await CoachUserProfile.AddAsync(unitOfWork, attachmentService, userId, request.Data, uploadedFiles, ct);
             if (profileErrors is not null)
@@ -100,14 +100,18 @@ public class UpdateCoachCommandHandler(
     }
 
     /// <summary>Soft-deletes the user's education, experience, skills and certificates (with their files' records).</summary>
-    private async Task RemoveUserDataAsync(long userId, List<string> oldFiles, CancellationToken ct)
+    private async Task RemoveUserDataAsync(long userId, IReadOnlyList<CoachCertificateInput> keptCertificates, List<string> oldFiles, CancellationToken ct)
     {
         var educations = await unitOfWork.GetRepository<UserEducation>().GetTableAsTracking().Where(x => x.UserId == userId).ToListAsync(ct);
         var experiences = await unitOfWork.GetRepository<UserExperience>().GetTableAsTracking().Where(x => x.UserId == userId).ToListAsync(ct);
         var skills = await unitOfWork.GetRepository<UserSkill>().GetTableAsTracking().Where(x => x.UserId == userId).ToListAsync(ct);
         var certificates = await unitOfWork.GetRepository<UserCertificate>().GetTableAsTracking().Where(x => x.UserId == userId).ToListAsync(ct);
 
-        var certificateIds = certificates.Select(c => c.Id).ToList();
+        // Certificates sent back with their Id are kept; their file goes only when a new one replaces it.
+        var kept = keptCertificates.Where(c => c.Id is not null).ToDictionary(c => c.Id!.Value, c => c.CertificateFile is not null);
+        var removed = certificates.Where(c => !kept.ContainsKey(c.Id)).ToList();
+
+        var certificateIds = removed.Select(c => c.Id).Concat(kept.Where(k => k.Value).Select(k => k.Key)).ToList();
         var attachments = await unitOfWork.GetRepository<Attachment>().GetTableAsTracking()
             .Where(a => a.EntityTypeId == EnumEntityTypes.UserCertificate && certificateIds.Contains(a.EntityId))
             .ToListAsync(ct);
@@ -116,7 +120,7 @@ public class UpdateCoachCommandHandler(
         unitOfWork.GetRepository<UserEducation>().DeleteRangeAsync(educations);
         unitOfWork.GetRepository<UserExperience>().DeleteRangeAsync(experiences);
         unitOfWork.GetRepository<UserSkill>().DeleteRangeAsync(skills);
-        unitOfWork.GetRepository<UserCertificate>().DeleteRangeAsync(certificates);
+        unitOfWork.GetRepository<UserCertificate>().DeleteRangeAsync(removed);
         unitOfWork.GetRepository<Attachment>().DeleteRangeAsync(attachments);
     }
 

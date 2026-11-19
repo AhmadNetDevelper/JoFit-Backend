@@ -33,7 +33,8 @@ public sealed record CoachCertificateInput(
     DateTime ExpiryDate,
     string CredentialId,
     string? CredentialUrl,
-    IFormFile? CertificateFile);
+    IFormFile? CertificateFile,
+    long? Id = null);
 
 public sealed record CoachExperienceInput(
     string Address,

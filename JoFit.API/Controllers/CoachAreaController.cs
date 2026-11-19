@@ -1,5 +1,7 @@
 using Asp.Versioning;
+using JoFit.API.Mapping;
 using JoFit.API.OpenApi;
+using JoFit.Contracts.Requests.Users;
 using JoFit.Application.Common.Interfaces;
 using JoFit.Application.Features.CoachPortal;
 using MediatR;
@@ -26,6 +28,29 @@ public sealed class CoachAreaController(ISender sender, ILocalizationService loc
     public async Task<IActionResult> Dashboard(CancellationToken ct)
     {
         var result = await sender.Send(new GetCoachDashboardQuery(CurrentUserId, Language), ct);
+        return result.Match(dto => Ok(dto), Problem);
+    }
+
+    [HttpGet("profile")]
+    [ProducesResponseType(typeof(MyCoachProfileDto), StatusCodes.Status200OK)]
+    [EndpointSummary("The coach's own profile, in the same shape register-coach accepts.")]
+    [EndpointName("GetCoachProfile")]
+    public async Task<IActionResult> Profile(CancellationToken ct)
+    {
+        var result = await sender.Send(new GetMyCoachProfileQuery(CurrentUserId), ct);
+        return result.Match(dto => Ok(dto), Problem);
+    }
+
+    [HttpPut("profile")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(MyCoachProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [EndpointSummary("Updates the coach's own profile.")]
+    [EndpointDescription("Multipart form with the register-coach field names, without username, email, password and slug. Educations, Certificates, Experiences and Skills replace what is stored; a certificate sent with its Id (from GET) is kept, and keeps its file unless a new CertificateFile is sent. The verification status is not changed.")]
+    [EndpointName("UpdateCoachProfile")]
+    public async Task<IActionResult> UpdateProfile([FromForm] UpdateMyCoachProfileRequest request, CancellationToken ct)
+    {
+        var result = await sender.Send(request.ToCommand(CurrentUserId), ct);
         return result.Match(dto => Ok(dto), Problem);
     }
 
