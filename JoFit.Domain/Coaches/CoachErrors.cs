@@ -7,6 +7,7 @@ public static class CoachErrors
     public static readonly Error NotFound = Error.NotFound("Coach.NotFound", "That coach does not exist.");
     public static readonly Error BookingNotFound = Error.NotFound("Coach.BookingNotFound", "That session does not exist.");
     public static readonly Error CertificationNotFound = Error.NotFound("Coach.CertificationNotFound", "That certification does not exist.");
+    public static readonly Error PackageNotFound = Error.NotFound("Coach.PackageNotFound", "That package does not exist.");
     public static readonly Error SlotNotFound = Error.NotFound("Coach.SlotNotFound", "That time is not open for booking.");
     public static readonly Error SlotTaken = Error.Conflict("Coach.SlotTaken", "That time has just been taken.");
 

@@ -21,6 +21,24 @@ public static class CoachModes
 
 public sealed record CoachPackageInput(long? Id, string NameEn, string NameAr, int DurationMinutes, int SessionCount, string Mode, long PriceAmount, long? CompareAtAmount);
 
+/// <summary>One set of package rules, shared by the coach form and the coach portal's package endpoints.</summary>
+public static class CoachPackageRules
+{
+    /// <param name="prefix">Field prefix, e.g. "packages.0." inside the coach form, or "" for a single package.</param>
+    public static List<Error> Validate(CoachPackageInput p, string prefix)
+    {
+        var errors = new List<Error>();
+        if (string.IsNullOrWhiteSpace(p.NameEn)) errors.Add(CoachErrors.Field($"{prefix}name.en", "The English package name is required."));
+        if (string.IsNullOrWhiteSpace(p.NameAr)) errors.Add(CoachErrors.Field($"{prefix}name.ar", "The Arabic package name is required."));
+        if (p.DurationMinutes is < 5 or > 600) errors.Add(CoachErrors.Field($"{prefix}durationMinutes", "Duration must be from 5 to 600 minutes."));
+        if (p.SessionCount is < 1 or > 100) errors.Add(CoachErrors.Field($"{prefix}sessionCount", "Sessions must be from 1 to 100."));
+        if (!CoachModes.All.Contains(p.Mode)) errors.Add(CoachErrors.Field($"{prefix}mode", "Choose in-person or online."));
+        if (p.PriceAmount < 0) errors.Add(CoachErrors.Field($"{prefix}price", "The price cannot be negative."));
+        if (p.CompareAtAmount is long compare && compare <= p.PriceAmount) errors.Add(CoachErrors.Field($"{prefix}compareAtPrice", "The compare-at price must be higher than the price."));
+        return errors;
+    }
+}
+
 /// <summary>The editable fields of a coach, as the back-office form saves them.</summary>
 public sealed record CoachDetails(
     string Slug,
@@ -119,15 +137,7 @@ public class Coach : AuditableEntity
         var packages = d.Packages ?? [];
         for (var i = 0; i < packages.Count; i++)
         {
-            var p = packages[i];
-            var key = $"packages.{i}";
-            if (string.IsNullOrWhiteSpace(p.NameEn)) errors.Add(CoachErrors.Field($"{key}.name.en", "The English package name is required."));
-            if (string.IsNullOrWhiteSpace(p.NameAr)) errors.Add(CoachErrors.Field($"{key}.name.ar", "The Arabic package name is required."));
-            if (p.DurationMinutes is < 5 or > 600) errors.Add(CoachErrors.Field($"{key}.durationMinutes", "Duration must be from 5 to 600 minutes."));
-            if (p.SessionCount is < 1 or > 100) errors.Add(CoachErrors.Field($"{key}.sessionCount", "Sessions must be from 1 to 100."));
-            if (!CoachModes.All.Contains(p.Mode)) errors.Add(CoachErrors.Field($"{key}.mode", "Choose in-person or online."));
-            if (p.PriceAmount < 0) errors.Add(CoachErrors.Field($"{key}.price", "The price cannot be negative."));
-            if (p.CompareAtAmount is long compare && compare <= p.PriceAmount) errors.Add(CoachErrors.Field($"{key}.compareAtPrice", "The compare-at price must be higher than the price."));
+            errors.AddRange(CoachPackageRules.Validate(packages[i], $"packages.{i}."));
         }
 
         if (errors.Count > 0)

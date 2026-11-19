@@ -105,4 +105,39 @@ public sealed class CoachAreaController(ISender sender, ILocalizationService loc
         var result = await sender.Send(new GetCoachPackagesQuery(CurrentUserId, Language), ct);
         return result.Match(items => Ok(items), Problem);
     }
+
+    [HttpPost("packages")]
+    [ProducesResponseType(typeof(CoachPortalPackageDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [EndpointSummary("Adds a package for this coach.")]
+    [EndpointDescription("Prices are in fils. Send name, or nameEn and nameAr. mode is in-person or online. compareAtPrice, when sent, must be higher than price.")]
+    [EndpointName("CreateCoachPackage")]
+    [LocalizedEndpoint]
+    public async Task<IActionResult> CreatePackage([FromBody] CoachPackageBody body, CancellationToken ct)
+    {
+        var result = await sender.Send(new CreateCoachPackageCommand(CurrentUserId, Language, body), ct);
+        return result.Match(dto => StatusCode(StatusCodes.Status201Created, dto), Problem);
+    }
+
+    [HttpPut("packages/{id:long}")]
+    [ProducesResponseType(typeof(CoachPortalPackageDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [EndpointSummary("Changes one of this coach's packages.")]
+    [EndpointName("UpdateCoachPackage")]
+    [LocalizedEndpoint]
+    public async Task<IActionResult> UpdatePackage(long id, [FromBody] CoachPackageBody body, CancellationToken ct)
+    {
+        var result = await sender.Send(new UpdateCoachPackageCommand(CurrentUserId, Language, id, body), ct);
+        return result.Match(dto => Ok(dto), Problem);
+    }
+
+    [HttpDelete("packages/{id:long}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [EndpointSummary("Removes one of this coach's packages. Past sessions keep its name.")]
+    [EndpointName("DeleteCoachPackage")]
+    public async Task<IActionResult> DeletePackage(long id, CancellationToken ct)
+    {
+        var result = await sender.Send(new DeleteCoachPackageCommand(CurrentUserId, id), ct);
+        return result.Match(_ => NoContent(), Problem);
+    }
 }
