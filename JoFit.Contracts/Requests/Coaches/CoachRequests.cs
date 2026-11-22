@@ -16,6 +16,14 @@ public sealed record CoachPackageRequest
     public MoneyRequest? CompareAtPrice { get; init; }
 }
 
+/// <summary>One working day: sessions start every hour from StartHour up to, not including, EndHour (Amman time). Day: 0 = Sunday ... 6 = Saturday.</summary>
+public sealed record CoachWorkingDayRequest
+{
+    public int Day { get; init; }
+    public int StartHour { get; init; }
+    public int EndHour { get; init; }
+}
+
 /// <summary>
 /// The coach page details sent with the coach sign-up / creation form. The email, name for login and password
 /// come from the user part of the form; a new coach is always pending verification.
@@ -34,6 +42,9 @@ public sealed record CoachProfileRequest
     public int ResponseTimeHours { get; init; } = 24;
     public MoneyRequest? SessionRate { get; init; }
     public List<CoachPackageRequest> Packages { get; init; } = [];
+
+    /// <summary>The weekly working hours. Absent keeps what is stored (a new coach gets Sunday to Thursday, 09:00 to 17:00).</summary>
+    public List<CoachWorkingDayRequest>? Schedule { get; init; }
 }
 
 /// <summary>Create and update body of a coach. A new coach is always pending verification.</summary>

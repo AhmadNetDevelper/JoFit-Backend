@@ -94,7 +94,8 @@ public static class CreateCoachMapper
         var details = new CoachDetails(
             p.Slug, p.Name.En, p.Name.Ar, p.Headline.En, p.Headline.Ar, p.Bio?.En, p.Bio?.Ar, email, p.LocationId,
             p.Languages, p.YearsOfExperience, p.ResponseTimeHours, p.SessionRate?.Amount,
-            p.Packages.Select(x => new CoachPackageInput(x.Id, x.Name.En, x.Name.Ar, x.DurationMinutes, x.SessionCount, x.Mode, x.Price.Amount, x.CompareAtPrice?.Amount)).ToList());
+            p.Packages.Select(x => new CoachPackageInput(x.Id, x.Name.En, x.Name.Ar, x.DurationMinutes, x.SessionCount, x.Mode, x.Price.Amount, x.CompareAtPrice?.Amount)).ToList(),
+            p.Schedule?.Select(d => new CoachWorkingDay((DayOfWeek)d.Day, d.StartHour, d.EndHour)).ToList());
 
         return new CoachInput(details, p.SportIds, p.Specializations, null, null, null);
     }

@@ -1022,12 +1022,6 @@ namespace JoFit.Infrastructure.Migrations
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
 
-                    b.Property<int>("DayEndHour")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("DayStartHour")
-                        .HasColumnType("integer");
-
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
@@ -1099,10 +1093,10 @@ namespace JoFit.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<string>("WorkingDays")
+                    b.Property<string>("WeeklySchedule")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<int>("YearsOfExperience")
                         .HasColumnType("integer");

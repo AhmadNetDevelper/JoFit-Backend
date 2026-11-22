@@ -68,22 +68,23 @@ public static class CoachSlots
         return (coachId, date, hour);
     }
 
-    /// <summary>Whether the coach offers this hour on this date (working day, inside the day, still ahead).</summary>
+    /// <summary>Whether the coach offers this hour on this date (working day, inside that day's hours, still ahead).</summary>
     public static bool IsOffered(Coach coach, DateOnly date, int hour)
-        => hour >= coach.DayStartHour && hour < coach.DayEndHour
-           && coach.WorkingDayList.Contains(date.DayOfWeek)
+        => coach.Schedule.Any(d => d.Day == date.DayOfWeek && hour >= d.StartHour && hour < d.EndHour)
            && AmmanTime.At(date, hour) > DateTimeOffset.UtcNow;
 
     public static IEnumerable<(DateOnly Date, int Hour)> Offered(Coach coach, DateOnly from, DateOnly to)
     {
+        var schedule = coach.Schedule;
         for (var day = from; day <= to; day = day.AddDays(1))
         {
-            if (!coach.WorkingDayList.Contains(day.DayOfWeek))
+            var hours = schedule.FirstOrDefault(d => d.Day == day.DayOfWeek);
+            if (hours is null)
             {
                 continue;
             }
 
-            for (var hour = coach.DayStartHour; hour < coach.DayEndHour; hour++)
+            for (var hour = hours.StartHour; hour < hours.EndHour; hour++)
             {
                 if (AmmanTime.At(day, hour) > DateTimeOffset.UtcNow)
                 {

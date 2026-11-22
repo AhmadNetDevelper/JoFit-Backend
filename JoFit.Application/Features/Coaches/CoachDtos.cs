@@ -39,6 +39,8 @@ public sealed record CoachUserCertificateDto(
 
 public sealed record CoachSkillDto(long Id, long CourseId, LocalizedText? Course, short PercentageScore);
 
+public sealed record CoachWorkingDayDto(int Day, int StartHour, int EndHour);
+
 public sealed record AdminCoachDto(
     long Id,
     string Slug,
@@ -65,6 +67,9 @@ public sealed record AdminCoachDto(
 {
     // Filled by the single-coach read only; the list leaves them empty.
     public CoachAccountDto? Account { get; init; }
+
+    /// <summary>The weekly working hours; Day is 0 = Sunday ... 6 = Saturday.</summary>
+    public IReadOnlyList<CoachWorkingDayDto> Schedule { get; init; } = [];
     public IReadOnlyList<CoachEducationDto> Educations { get; init; } = [];
     public IReadOnlyList<CoachExperienceDto> Experiences { get; init; } = [];
     public IReadOnlyList<CoachUserCertificateDto> UserCertificates { get; init; } = [];
@@ -95,7 +100,10 @@ public sealed record AdminCoachDto(
             c.VerificationNote,
             completedSessions,
             c.UserId is not null,
-            AuditDto.From(c));
+            AuditDto.From(c))
+        {
+            Schedule = c.Schedule.Select(d => new CoachWorkingDayDto((int)d.Day, d.StartHour, d.EndHour)).ToList(),
+        };
 }
 
 public sealed record PublicRef(long Id, string Slug, string Name);

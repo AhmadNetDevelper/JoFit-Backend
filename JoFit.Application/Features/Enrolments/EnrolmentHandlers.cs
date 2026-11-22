@@ -4,10 +4,12 @@ using JoFit.Application.Common.Models;
 using JoFit.Application.Common.Services;
 using JoFit.Application.Features.Customers;
 using JoFit.Application.Features.Notifications;
+using JoFit.Domain.Coaches;
 using JoFit.Domain.Common.Results;
 using JoFit.Domain.Courses;
 using JoFit.Domain.Customers;
 using JoFit.Domain.Enrolments;
+using JoFit.Domain.Identity.Users;
 using JoFit.Domain.Notifications;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -98,13 +100,51 @@ internal static class EnrolmentMapper
     }
 }
 
+/// <summary>
+/// A place on a course belongs to a customer record. A customer has one from sign-up; a coach (who may also take an academy
+/// course as a learner) has none, so the first reservation creates it from the coach's own login. Nobody else gets one this way.
+/// </summary>
+internal static class CustomerProfiles
+{
+    public static async Task<Customer?> GetOrCreateForLearnerAsync(IUnitOfWork unitOfWork, long userId, CancellationToken ct)
+    {
+        var db = unitOfWork.GetDbContext();
+        var existing = await db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId, ct);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var coach = await db.Set<Coach>().AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId, ct);
+        var user = coach is null ? null : await db.Set<User>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (coach is null || user is null)
+        {
+            return null;
+        }
+
+        var name = string.IsNullOrWhiteSpace(user.FullName) ? coach.NameEn : user.FullName;
+        var created = Customer.Create(userId, name, user.PhoneNumber, "ar", false);
+        try
+        {
+            await unitOfWork.GetRepository<Customer>().AddAsync(created, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return created;
+        }
+        catch (DbUpdateException)
+        {
+            // The unique index on the user settled a double click: the other request made it.
+            return await db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId, ct);
+        }
+    }
+}
+
 public class EnrolCommandHandler(IUnitOfWork unitOfWork, ILocalizationService localization)
     : IRequestHandler<EnrolCommand, Result<AccountEnrolmentDto>>
 {
     public async Task<Result<AccountEnrolmentDto>> Handle(EnrolCommand request, CancellationToken ct)
     {
         var db = unitOfWork.GetDbContext();
-        var customer = await db.Set<Customer>().AsNoTracking().FirstOrDefaultAsync(c => c.UserId == request.UserId, ct);
+        var customer = await CustomerProfiles.GetOrCreateForLearnerAsync(unitOfWork, request.UserId, ct);
         if (customer is null)
         {
             return CustomerErrors.NotFound;

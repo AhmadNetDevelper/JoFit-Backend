@@ -46,9 +46,11 @@ public sealed record AdminListRequest
 
 // ---- the customer's enrolments and reviews ------------------------------------
 
+// Enrolments are open to a coach as well (a coach can take an academy course as a learner). Reviews stay customer-only, which is
+// why each review action below repeats the customer role: the policy on the class and the one on the action must both pass.
 [Route("api/v{version:apiVersion}/me")]
 [ApiVersion("1.0")]
-[Authorize(Roles = "customer")]
+[Authorize(Roles = "customer,coach")]
 public sealed class MeEngagementController(ISender sender, ILocalizationService localization) : ApiController
 {
     private string Language => localization.GetCurrentLanguage() ?? "ar";
@@ -84,6 +86,7 @@ public sealed class MeEngagementController(ISender sender, ILocalizationService 
     }
 
     [HttpGet("reviews")]
+    [Authorize(Roles = "customer")]
     [ProducesResponseType(typeof(List<AccountReviewDto>), StatusCodes.Status200OK)]
     [EndpointSummary("The customer's reviews and where they stand.")]
     [EndpointName("GetMyReviews")]
@@ -94,6 +97,7 @@ public sealed class MeEngagementController(ISender sender, ILocalizationService 
     }
 
     [HttpGet("reviewable")]
+    [Authorize(Roles = "customer")]
     [ProducesResponseType(typeof(List<ReviewableDto>), StatusCodes.Status200OK)]
     [EndpointSummary("What the customer can review: completed purchases, returned hires, completed sessions, courses taken.")]
     [EndpointName("GetMyReviewable")]
@@ -104,6 +108,7 @@ public sealed class MeEngagementController(ISender sender, ILocalizationService 
     }
 
     [HttpPost("reviews")]
+    [Authorize(Roles = "customer")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [EndpointSummary("Leaves a review. It is hidden until staff approve it; a target you do not have is forbidden.")]
     [EndpointName("SubmitReview")]

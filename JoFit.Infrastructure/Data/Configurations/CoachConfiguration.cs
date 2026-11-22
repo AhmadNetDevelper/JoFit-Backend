@@ -37,9 +37,9 @@ public class CoachConfiguration : IEntityTypeConfiguration<Coach>
         builder.Property(x => x.Languages).IsRequired().HasMaxLength(20);
         builder.Property(x => x.VerificationStatus).IsRequired().HasMaxLength(20);
         builder.Property(x => x.VerificationNote).HasMaxLength(1000);
-        builder.Property(x => x.WorkingDays).IsRequired().HasMaxLength(20);
+        builder.Property(x => x.WeeklySchedule).IsRequired().HasMaxLength(100);
         builder.Ignore(x => x.LanguageList);
-        builder.Ignore(x => x.WorkingDayList);
+        builder.Ignore(x => x.Schedule);
         builder.Ignore(x => x.IsListed);
 
         builder.HasIndex(x => x.Slug).IsUnique().HasFilter("\"IsDeleted\" = false");

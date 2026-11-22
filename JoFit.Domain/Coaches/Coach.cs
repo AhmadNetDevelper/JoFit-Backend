@@ -39,6 +39,61 @@ public static class CoachPackageRules
     }
 }
 
+/// <summary>One working day of a coach: sessions start every hour from <see cref="StartHour"/> up to, not including, <see cref="EndHour"/> (Amman time).</summary>
+public sealed record CoachWorkingDay(DayOfWeek Day, int StartHour, int EndHour);
+
+/// <summary>Reads, checks and writes the weekly schedule, stored as "day:start-end" entries, e.g. "0:9-17,6:6-12".</summary>
+public static class CoachSchedule
+{
+    /// <summary>Sunday to Thursday, 09:00 to 17:00.</summary>
+    public static readonly IReadOnlyList<CoachWorkingDay> Default =
+        [.. new[] { DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday }.Select(d => new CoachWorkingDay(d, 9, 17))];
+
+    public static string Serialize(IEnumerable<CoachWorkingDay> days)
+        => string.Join(',', days.OrderBy(d => d.Day).Select(d => $"{(int)d.Day}:{d.StartHour}-{d.EndHour}"));
+
+    public static IReadOnlyList<CoachWorkingDay> Parse(string? value)
+    {
+        var days = new List<CoachWorkingDay>();
+        foreach (var entry in (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var halves = entry.Split(':');
+            var hours = halves.Length == 2 ? halves[1].Split('-') : [];
+            if (hours.Length == 2 && int.TryParse(halves[0], out var day) && int.TryParse(hours[0], out var start) && int.TryParse(hours[1], out var end)
+                && day is >= 0 and <= 6)
+            {
+                days.Add(new CoachWorkingDay((DayOfWeek)day, start, end));
+            }
+        }
+
+        return days;
+    }
+
+    public static List<Error> Validate(IReadOnlyList<CoachWorkingDay> days)
+    {
+        var errors = new List<Error>();
+        if (days.Count == 0)
+        {
+            errors.Add(CoachErrors.Field("schedule", "Choose at least one working day."));
+        }
+
+        for (var i = 0; i < days.Count; i++)
+        {
+            var d = days[i];
+            if (!Enum.IsDefined(d.Day)) errors.Add(CoachErrors.Field($"schedule.{i}.day", "Choose a day from Sunday to Saturday."));
+            if (d.StartHour is < 0 or > 23) errors.Add(CoachErrors.Field($"schedule.{i}.startHour", "The first hour must be from 0 to 23."));
+            else if (d.EndHour is < 1 or > 24 || d.EndHour <= d.StartHour) errors.Add(CoachErrors.Field($"schedule.{i}.endHour", "The last hour must be after the first, up to 24."));
+        }
+
+        if (days.Select(d => d.Day).Distinct().Count() != days.Count)
+        {
+            errors.Add(CoachErrors.Field("schedule", "Each day can only appear once."));
+        }
+
+        return errors;
+    }
+}
+
 /// <summary>The editable fields of a coach, as the back-office form saves them.</summary>
 public sealed record CoachDetails(
     string Slug,
@@ -54,7 +109,8 @@ public sealed record CoachDetails(
     int YearsOfExperience,
     int ResponseTimeHours,
     long? SessionRateAmount,
-    IReadOnlyList<CoachPackageInput> Packages);
+    IReadOnlyList<CoachPackageInput> Packages,
+    IReadOnlyList<CoachWorkingDay>? Schedule = null);
 
 public class Coach : AuditableEntity
 {
@@ -79,10 +135,8 @@ public class Coach : AuditableEntity
     public string VerificationStatus { get; private set; } = CoachVerification.Pending;
     public string? VerificationNote { get; private set; }
 
-    /// <summary>Weekly schedule, until an availability editor exists: Sunday to Thursday, 09:00 to 17:00, hourly slots (Amman time).</summary>
-    public string WorkingDays { get; private set; } = "0,1,2,3,4";
-    public int DayStartHour { get; private set; } = 9;
-    public int DayEndHour { get; private set; } = 17;
+    /// <summary>Weekly schedule as "day:start-end" entries (Amman time, hourly slots). See <see cref="CoachSchedule"/>.</summary>
+    public string WeeklySchedule { get; private set; } = CoachSchedule.Serialize(CoachSchedule.Default);
 
     public List<CoachPackage> Packages { get; private set; } = [];
     public List<CoachCertification> Certifications { get; private set; } = [];
@@ -93,7 +147,7 @@ public class Coach : AuditableEntity
 
     public IReadOnlyList<string> LanguageList => Languages.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
-    public IReadOnlyList<DayOfWeek> WorkingDayList => WorkingDays.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(d => (DayOfWeek)int.Parse(d)).ToList();
+    public IReadOnlyList<CoachWorkingDay> Schedule => CoachSchedule.Parse(WeeklySchedule);
 
     public bool IsListed => VerificationStatus == CoachVerification.Approved;
 
@@ -140,11 +194,18 @@ public class Coach : AuditableEntity
             errors.AddRange(CoachPackageRules.Validate(packages[i], $"packages.{i}."));
         }
 
+        // Null keeps the stored schedule, so forms that do not edit it leave it alone.
+        if (d.Schedule is not null)
+        {
+            errors.AddRange(CoachSchedule.Validate(d.Schedule));
+        }
+
         if (errors.Count > 0)
         {
             return errors;
         }
 
+        if (d.Schedule is not null) WeeklySchedule = CoachSchedule.Serialize(d.Schedule);
         Slug = slug;
         NameEn = nameEn;
         NameAr = nameAr;
